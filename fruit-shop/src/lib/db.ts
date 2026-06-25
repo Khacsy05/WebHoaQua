@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/fruit_shop";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://thongnch:[EMAIL_ADDRESS]/?appName=Cluster0";
 
 if (!MONGODB_URI) {
   throw new Error("Vui lòng cấu hình biến MONGODB_URI trong file .env");
@@ -18,7 +18,7 @@ export async function connectDB() {
   if (!cached.promise) {
     cached.promise = mongoose.connect(MONGODB_URI).then((m) => m);
   }
-  
+
   cached.conn = await cached.promise;
   return cached.conn;
 }
