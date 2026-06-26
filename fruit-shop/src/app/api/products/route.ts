@@ -3,10 +3,14 @@ import { connectDB } from "@/lib/db";
 import Product from "@/models/Product";
 import { verifyAuth } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         await connectDB();
-        const products = await Product.find()
+        const { searchParams } = new URL(request.url);
+        const categoryId = searchParams.get("categoryId");
+        const filter = categoryId ? { category_id: categoryId } : {};
+
+        const products = await Product.find(filter)
             .populate("category_id", "name")
             .sort({ createdAt: -1 });
 

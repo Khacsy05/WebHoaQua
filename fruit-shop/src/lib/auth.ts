@@ -4,6 +4,7 @@ export interface DecodedToken {
     userId: string;
     username: string;
     role: "ROLE_ADMIN" | "ROLE_CUSTOMER";
+    customerId?: string;
 }
 
 // Hàm giải mã và kiểm tra quyền từ Header của Request gửi lên
@@ -14,7 +15,6 @@ export function verifyAuth(request: Request, allowedRoles: string[]) {
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return { success: false, status: 401, message: "Bạn chưa đăng nhập!" };
         }
-
         const token = authHeader.split(" ")[1];
 
         // Giải mã token
