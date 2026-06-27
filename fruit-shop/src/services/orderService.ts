@@ -6,6 +6,9 @@ export interface CheckoutPayload {
         addons: string | null;
     }[];
     promotion_id?: string | null;
+    address?: string;
+    phone?: string;
+    payment_method?: string;
 }
 
 export async function createOrder(payload: CheckoutPayload): Promise<{ success: boolean; message?: string; error?: string }> {

@@ -1,55 +1,42 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import AddonModal from '@/components/AddonModal';
+import Link from 'next/link';
 import CartDrawer from '@/components/CartDrawer';
-import { formatCurrency } from '@/utils/helpers';
-import { Product, Category, CartData, User } from '@/types/shop';
+import { formatCurrency, getProductImage } from '@/utils/helpers';
+import { Product, Category, CartData } from '@/types/shop';
 import { getCart } from '@/utils/cart';
 import { fetchProducts, fetchCategories } from '@/services/productService';
-import { fetchCurrentUser } from '@/services/authService';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useShopStore } from '@/store/useShopStore';
 
 export default function ShopPage() {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [selectedCategoryId, setSelectedCategoryId] = useState<string | number | null>(null);
-    const [user, setUser] = useState<User | null>(null);
+    const { products, categories, selectedCategoryId, setSelectedCategoryId, loadShopData } = useShopStore();
+    const { user, loadUser, logout } = useAuthStore();
+    const [mounted, setMounted] = useState(false);
 
-    // State điều khiển Giỏ hàng & Modal
+    // State điều khiển Giỏ hàng
     const [cartData, setCartData] = useState<CartData>({ items: [], total: 0, discount: 0, payable: 0, totalItems: 0 });
     const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
     useEffect(() => {
-        const loadInitialData = async () => {
-            const productsData = await fetchProducts(selectedCategoryId);
-            setProducts(productsData);
+        setMounted(true);
+        loadUser();
+        loadShopData(selectedCategoryId);
+    }, []);
 
-            const categoriesData = await fetchCategories();
-            setCategories(categoriesData);
-
-            const userData = await fetchCurrentUser();
-            setUser(userData);
-        };
-
-        loadInitialData();
+    useEffect(() => {
         loadCartItems();
-    }, [selectedCategoryId]);
+    }, [user]);
 
     const loadCartItems = () => {
         try {
-            const data = getCart();
+            const data = getCart(user?.name);
             setCartData(data);
         } catch (error) {
             console.error('Lỗi khi tải giỏ hàng:', error);
         }
-    };
-
-    const handleAddToCartClick = (product: Product) => {
-        setSelectedProduct(product);
-        setIsModalOpen(true);
     };
 
     return (
@@ -57,9 +44,9 @@ export default function ShopPage() {
             {/* HEADER */}
             <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
                 <div className="container mx-auto px-4 flex items-center justify-between py-4">
-                    <a className="text-2xl font-bold text-green-600 tracking-tight" href="/shop">FruitShop</a>
+                    <Link className="text-2xl font-bold text-green-600 tracking-tight" href="/shop">FruitShop</Link>
                     <nav className="flex items-center gap-6">
-                        <a href="/shop" className="text-gray-600 hover:text-green-600 font-medium transition">Trang chủ</a>
+                        <Link href="/shop" className="text-gray-600 hover:text-green-600 font-medium transition">Trang chủ</Link>
 
                         <button
                             className="relative text-gray-700 hover:text-green-600 p-1 transition focus:outline-none"
@@ -77,10 +64,12 @@ export default function ShopPage() {
                             )}
                         </button>
 
-                        {!user ? (
+                        {!mounted ? (
+                            <div className="w-24 h-9 bg-gray-100 rounded-lg animate-pulse"></div>
+                        ) : !user ? (
                             <div className="flex items-center gap-4">
-                                <a href="/register" className="text-gray-600 hover:text-green-600 font-medium transition">Đăng ký</a>
-                                <a href="/login" className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition">Đăng nhập</a>
+                                <Link href="/register" className="text-gray-600 hover:text-green-600 font-medium transition">Đăng ký</Link>
+                                <Link href="/login" className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition">Đăng nhập</Link>
                             </div>
                         ) : (
                             <div className="relative">
@@ -94,12 +83,15 @@ export default function ShopPage() {
                                 {isDropdownOpen && (
                                     <ul className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50 animate-fadeIn">
                                         {(user.role === 'ROLE_ADMIN' || user.role === 'ROLE_MANAGER') && (
-                                            <li><a className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" href="/admin/dashboard">Kênh quản lý</a></li>
+                                            <li><Link className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" href="/admin/dashboard">Kênh quản lý</Link></li>
                                         )}
                                         <li>
-                                            <form action="/login" method="post" className="m-0">
-                                                <button type="submit" className="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium">Đăng xuất</button>
-                                            </form>
+                                            <button
+                                                onClick={() => { logout(); setIsDropdownOpen(false); }}
+                                                className="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium"
+                                            >
+                                                Đăng xuất
+                                            </button>
                                         </li>
                                     </ul>
                                 )}
@@ -142,21 +134,25 @@ export default function ShopPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                     {products.map(product => {
                         const prodId = product._id || product.id;
-                        const imgPath = product.image ? (product.image.startsWith('/') ? product.image : `/images/${product.image}`) : null;
+                        const imgPath = getProductImage(product.image);
                         return (
-                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col" key={prodId}>
-                                <div className="h-56 bg-gray-50 flex items-center justify-center p-4">
-                                    {imgPath ? <img src={imgPath} alt={product.name} className="max-h-full max-w-full object-contain" /> : <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-2xl uppercase">{product.name?.substring(0, 1)}</div>}
-                                </div>
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition duration-300" key={prodId}>
+                                <Link href={`/shop/products/${prodId}`} className="block">
+                                    <div className="h-56 bg-gray-50 flex items-center justify-center p-4">
+                                        <img src={imgPath} alt={product.name} className="max-h-full max-w-full object-contain" />
+                                    </div>
+                                </Link>
                                 <div className="p-5 flex flex-col flex-grow">
                                     <p className="text-xs font-semibold text-green-600 uppercase mb-1">{(product.category_id?.name || product.category?.name || 'Trái cây')}</p>
-                                    <h5 className="text-lg font-bold text-gray-900 mb-2">{product.name}</h5>
+                                    <Link href={`/shop/products/${prodId}`}>
+                                        <h5 className="text-lg font-bold text-gray-900 mb-2 hover:text-green-600 transition">{product.name}</h5>
+                                    </Link>
                                     <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-grow">{product.description}</p>
                                     <div className="flex items-center justify-between mt-auto">
                                         <span className="text-xl font-extrabold text-gray-900">{formatCurrency(product.price)}</span>
-                                        <button className="px-4 py-2 rounded-xl text-sm font-bold bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-200" disabled={product.stock <= 0} onClick={() => handleAddToCartClick(product)}>
-                                            {product.stock > 0 ? 'Thêm giỏ' : 'Hết hàng'}
-                                        </button>
+                                        <Link href={`/shop/products/${prodId}`} className="px-4 py-2 rounded-xl text-sm font-bold bg-green-600 text-white hover:bg-green-700">
+                                            Xem chi tiết
+                                        </Link>
                                     </div>
                                 </div>
                             </div>
@@ -165,7 +161,6 @@ export default function ShopPage() {
                 </div>
             </section>
 
-            <AddonModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} product={selectedProduct} onCartUpdated={loadCartItems} />
             <CartDrawer isOpen={isCartOpen} cartData={cartData} user={user} onClose={() => setIsCartOpen(false)} onCartUpdated={loadCartItems} />
         </div>
     );

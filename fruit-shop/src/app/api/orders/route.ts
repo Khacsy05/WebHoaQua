@@ -4,6 +4,7 @@ import ShopOrder from "@/models/ShopOrder";
 import OrderItem from "@/models/OrderItem";
 import Product from "@/models/Product";
 import Promotion from "@/models/Promotion";
+import Customer from "@/models/Customer";
 
 // [POST] /api/orders - Tiến hành đặt hàng
 export async function POST(request: Request) {
@@ -12,10 +13,18 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // items truyền lên dạng mảng: [{ product_id: "...", quantity: 2, addons: "..." }]
-        const { customer_id, items, promotion_id } = body;
+        const { customer_id, items, promotion_id, address, phone } = body;
 
         if (!customer_id || !items || items.length === 0) {
             return NextResponse.json({ success: false, message: "Thông tin giỏ hàng không hợp lệ" }, { status: 400 });
+        }
+
+        // Cập nhật thông tin địa chỉ & số điện thoại nếu khách hàng có thay đổi lúc thanh toán
+        if (address || phone) {
+            await Customer.findByIdAndUpdate(customer_id, {
+                ...(address ? { address } : {}),
+                ...(phone ? { phone } : {})
+            });
         }
 
         let total_amount = 0;

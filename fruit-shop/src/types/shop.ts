@@ -40,6 +40,12 @@ export interface User {
     name: string;
     role: 'ROLE_USER' | 'ROLE_ADMIN' | 'ROLE_MANAGER';
     customerId?: string;
+    customer?: {
+        name: string;
+        email: string;
+        phone?: string;
+        address?: string;
+    } | null;
 }
 
 export interface Promotion {

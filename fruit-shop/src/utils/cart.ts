@@ -1,12 +1,15 @@
 import { CartData, CartItem, Product } from "@/types/shop";
 
-const CART_KEY = "fruit_shop_cart";
+function getCartKey(username?: string | null): string {
+    return username ? `fruit_shop_cart_${username}` : "fruit_shop_cart_guest";
+}
 
-export function getCart(): CartData {
+export function getCart(username?: string | null): CartData {
     if (typeof window === "undefined") {
         return { items: [], total: 0, discount: 0, payable: 0, totalItems: 0 };
     }
-    const cartStr = localStorage.getItem(CART_KEY);
+    const cartKey = getCartKey(username);
+    const cartStr = localStorage.getItem(cartKey);
     if (!cartStr) {
         return { items: [], total: 0, discount: 0, payable: 0, totalItems: 0 };
     }
@@ -36,15 +39,16 @@ export function getCart(): CartData {
     }
 }
 
-export function addToCart(product: Product, quantity: number, addonsList: string[]) {
+export function addToCart(product: Product, quantity: number, addonsList: string[], username?: string | null) {
     if (typeof window === "undefined") return;
-    const cartData = getCart();
+    const cartKey = getCartKey(username);
+    const cartData = getCart(username);
     const items = cartData.items;
 
     // Generate a unique key based on productId and selected addons
     const productId = product.id || product._id;
     const addonKey = [...addonsList].sort().join("-");
-    const cartKey = productId + (addonKey ? "_" + addonKey : "");
+    const itemCartKey = productId + (addonKey ? "_" + addonKey : "");
 
     // Calculate item price with addons
     const basePrice = Number(product.price);
@@ -56,12 +60,12 @@ export function addToCart(product: Product, quantity: number, addonsList: string
         }
     });
 
-    const existingIndex = items.findIndex(item => item.cartKey === cartKey);
+    const existingIndex = items.findIndex(item => item.cartKey === itemCartKey);
     if (existingIndex > -1) {
         items[existingIndex].quantity += quantity;
     } else {
         items.push({
-            cartKey,
+            cartKey: itemCartKey,
             id: product.id,
             _id: product._id,
             name: product.name + (addonsList.length > 0 ? " (Kèm dịch vụ)" : ""),
@@ -73,12 +77,13 @@ export function addToCart(product: Product, quantity: number, addonsList: string
         });
     }
 
-    localStorage.setItem(CART_KEY, JSON.stringify(items));
+    localStorage.setItem(cartKey, JSON.stringify(items));
 }
 
-export function updateCartQuantity(cartKey: string, quantity: number) {
+export function updateCartQuantity(cartKey: string, quantity: number, username?: string | null) {
     if (typeof window === "undefined") return;
-    const cartData = getCart();
+    const storageKey = getCartKey(username);
+    const cartData = getCart(username);
     let items = cartData.items;
 
     if (quantity <= 0) {
@@ -90,17 +95,19 @@ export function updateCartQuantity(cartKey: string, quantity: number) {
         }
     }
 
-    localStorage.setItem(CART_KEY, JSON.stringify(items));
+    localStorage.setItem(storageKey, JSON.stringify(items));
 }
 
-export function removeFromCart(cartKey: string) {
+export function removeFromCart(cartKey: string, username?: string | null) {
     if (typeof window === "undefined") return;
-    const cartData = getCart();
+    const storageKey = getCartKey(username);
+    const cartData = getCart(username);
     const items = cartData.items.filter(item => item.cartKey !== cartKey);
-    localStorage.setItem(CART_KEY, JSON.stringify(items));
+    localStorage.setItem(storageKey, JSON.stringify(items));
 }
 
-export function clearCart() {
+export function clearCart(username?: string | null) {
     if (typeof window === "undefined") return;
-    localStorage.removeItem(CART_KEY);
+    const storageKey = getCartKey(username);
+    localStorage.removeItem(storageKey);
 }

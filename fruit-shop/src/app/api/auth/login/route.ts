@@ -23,6 +23,15 @@ export async function POST(request: Request) {
         let customerInfo = null;
         if (user.role === "ROLE_CUSTOMER") {
             customerInfo = await Customer.findOne({ user_id: user._id });
+            if (!customerInfo) {
+                customerInfo = await Customer.create({
+                    user_id: user._id,
+                    name: user.full_name || user.username,
+                    email: user.email,
+                    phone: null,
+                    address: null
+                });
+            }
         }
 
         // 3. Đăng nhập đúng -> Tạo mã JWT Token nén thông tin quyền hạn (role) vào
