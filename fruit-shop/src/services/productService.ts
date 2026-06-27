@@ -24,3 +24,15 @@ export async function fetchCategories(): Promise<Category[]> {
         return [];
     }
 }
+
+export async function fetchProductById(id: string): Promise<Product | null> {
+    try {
+        const response = await fetch(`/api/products/${id}`);
+        if (!response.ok) throw new Error("Failed to fetch product");
+        const res = await response.json();
+        return res.success ? res.data : null;
+    } catch (error) {
+        console.error("Lỗi khi tải chi tiết sản phẩm:", error);
+        return null;
+    }
+}

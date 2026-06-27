@@ -10,6 +10,7 @@ interface AddonModalProps {
     isOpen: boolean;
     onClose: () => void;
     product: Product | null;
+    username?: string | null;
     onCartUpdated: () => void;
 }
 
@@ -19,7 +20,7 @@ interface AddonsState {
     wrap: boolean;
 }
 
-export default function AddonModal({ isOpen, onClose, product, onCartUpdated }: AddonModalProps) {
+export default function AddonModal({ isOpen, onClose, product, username, onCartUpdated }: AddonModalProps) {
     const [quantity, setQuantity] = useState<number>(1);
     const [addons, setAddons] = useState<AddonsState>({ engrave: false, peel: false, wrap: false });
     const [totalPrice, setTotalPrice] = useState<number>(0);
@@ -53,7 +54,7 @@ export default function AddonModal({ isOpen, onClose, product, onCartUpdated }: 
         
         const selectedAddonsList = (Object.keys(addons) as Array<keyof AddonsState>).filter(key => addons[key]);
         
-        addToCart(product, quantity, selectedAddonsList);
+        addToCart(product, quantity, selectedAddonsList, username);
         
         onClose();
         onCartUpdated();

@@ -23,3 +23,9 @@ export function showNotification(message: string): void {
         setTimeout(() => toast.remove(), 300);
     }, 2500);
 }
+
+export function getProductImage(imagePath: string | undefined | null): string {
+    if (!imagePath) return '/images/default.png';
+    if (imagePath.startsWith('/') || imagePath.startsWith('http')) return imagePath;
+    return `/images/${imagePath}`;
+}
