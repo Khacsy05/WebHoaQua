@@ -47,3 +47,65 @@ export async function GET(request: Request) {
         }
     });
 }
+
+export async function PUT(request: Request) {
+    const auth = verifyAuth(request, ["ROLE_ADMIN", "ROLE_CUSTOMER"]);
+    if (!auth.success) {
+        return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
+    }
+
+    try {
+        const body = await request.json();
+        const { name, phone, address } = body;
+
+        if (!name || name.trim() === "") {
+            return NextResponse.json({ success: false, message: "Tên không được để trống" }, { status: 400 });
+        }
+
+        await connectDB();
+        
+        let customerData = null;
+        if (auth.user?.customerId) {
+            customerData = await Customer.findById(auth.user.customerId);
+        }
+        
+        if (!customerData && auth.user?.userId) {
+            customerData = await Customer.findOne({ user_id: auth.user.userId });
+        }
+
+        if (!customerData) {
+            customerData = await Customer.create({
+                user_id: auth.user?.userId,
+                name: name,
+                email: auth.user?.username + "@gmail.com",
+                phone: phone || null,
+                address: address || null
+            });
+        } else {
+            customerData.name = name;
+            customerData.phone = phone || null;
+            customerData.address = address || null;
+            await customerData.save();
+        }
+
+        return NextResponse.json({
+            success: true,
+            message: "Cập nhật thông tin thành công",
+            data: {
+                name: auth.user?.username,
+                role: auth.user?.role,
+                customerId: customerData._id,
+                customer: {
+                    name: customerData.name,
+                    email: customerData.email,
+                    phone: customerData.phone,
+                    address: customerData.address
+                }
+            }
+        });
+    } catch (error: any) {
+        console.error("Lỗi khi cập nhật thông tin khách hàng:", error);
+        return NextResponse.json({ success: false, message: error.message || "Lỗi server" }, { status: 500 });
+    }
+}
+

@@ -1,14 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { loginUser } from '@/services/authService';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function LoginPage() {
+    const router = useRouter();
+    const { loadUser, logout } = useAuthStore();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        logout();
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -19,8 +27,10 @@ export default function LoginPage() {
         const res = await loginUser(username, password);
         if (res.success) {
             setSuccessMsg('Đăng nhập thành công!');
+            // Tải thông tin chi tiết của user vào Zustand Store ngay lập tức
+            await loadUser(true);
             setTimeout(() => {
-                window.location.href = '/shop';
+                router.push('/shop');
             }, 1000);
         } else {
             setErrorMsg(res.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');

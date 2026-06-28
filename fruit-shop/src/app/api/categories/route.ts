@@ -15,7 +15,7 @@ export async function GET() {
 
 // [POST] /api/categories - Thêm danh mục mới
 export async function POST(request: Request) {
-    const authResult = verifyAuth(request, ["ROLE_ADMIN"]);
+    const authResult = verifyAuth(request, ["ROLE_ADMIN", "ROLE_MANAGER"]);
     if (!authResult.success) {
         return NextResponse.json({ success: false, message: authResult.message }, { status: authResult.status });
     }

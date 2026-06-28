@@ -2,6 +2,7 @@ export interface Category {
     id?: number;
     _id?: string;
     name: string;
+    description: string;
 }
 
 export interface Product {
@@ -49,9 +50,11 @@ export interface User {
 }
 
 export interface Promotion {
-    _id: string;
+    _id?: string;
     name: string;
     type: string;
+    start_date: Date;
+    end_date: Date;
     discount_percent: number;
     threshold_amount: number;
     active: boolean;
