@@ -8,7 +8,7 @@ interface ShopState {
     selectedCategoryId: string | number | null;
     initialLoaded: boolean;
     setSelectedCategoryId: (categoryId: string | number | null) => void;
-    loadShopData: (categoryId?: string | number | null, forceReload?: boolean) => Promise<void>;
+    loadShopData: (categoryId?: string | number | null, forceReload?: boolean, forceReloadCategories?: boolean) => Promise<void>;
 }
 
 export const useShopStore = create<ShopState>((set, get) => ({
@@ -19,14 +19,13 @@ export const useShopStore = create<ShopState>((set, get) => ({
 
     setSelectedCategoryId: (categoryId) => {
         set({ selectedCategoryId: categoryId });
-        get().loadShopData(categoryId, true); // reload products for this category
+        get().loadShopData(categoryId, true, false); // reload products for this category, do not reload categories
     },
 
-    loadShopData: async (categoryId = null, forceReload = false) => {
-        // If categories are already loaded, just load products
+    loadShopData: async (categoryId = null, forceReload = false, forceReloadCategories = false) => {
         try {
             let currentCats = get().categories;
-            if (currentCats.length === 0) {
+            if (currentCats.length === 0 || forceReloadCategories) {
                 currentCats = await fetchCategories();
             }
 

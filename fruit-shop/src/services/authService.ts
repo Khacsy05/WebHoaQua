@@ -63,3 +63,21 @@ export function logoutUser() {
         localStorage.removeItem("fruit_shop_token");
     }
 }
+
+export async function updateCurrentUser(payload: { name: string; phone: string; address: string }): Promise<{ success: boolean; message?: string; data?: any }> {
+    try {
+        const response = await fetch('/api/auth/me', {
+            method: 'PUT',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        return await response.json();
+    } catch (error: any) {
+        console.error("Lỗi khi cập nhật thông tin người dùng:", error);
+        return { success: false, message: error.message || "Lỗi mạng" };
+    }
+}
+
