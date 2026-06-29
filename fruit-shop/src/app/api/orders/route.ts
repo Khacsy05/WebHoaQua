@@ -5,8 +5,42 @@ import OrderItem from "@/models/OrderItem";
 import Product from "@/models/Product";
 import Promotion from "@/models/Promotion";
 import Customer from "@/models/Customer";
+import { verifyAuth } from "@/lib/auth";
 
-// [POST] /api/orders - Tiến hành đặt hàng
+// [GET] /api/orders - Lấy danh sách đơn hàng (Quản trị xem hết, Khách hàng chỉ xem đơn của họ)
+export async function GET(request: Request) {
+    const authResult = verifyAuth(request, ["ROLE_ADMIN", "ROLE_MANAGER", "ROLE_USER", "ROLE_CUSTOMER"]);
+    if (!authResult.success) {
+        return NextResponse.json({ success: false, message: authResult.message }, { status: authResult.status });
+    }
+    const decoded = authResult.user;
+
+    try {
+        await connectDB();
+
+        let query = {};
+        if (decoded!.role !== "ROLE_ADMIN") {
+            query = { customer_id: decoded!.customerId };
+        }
+
+        const orders = await ShopOrder.find(query)
+            .populate("customer_id")
+            .sort({ createdAt: -1 });
+
+        const ordersWithItems = await Promise.all(orders.map(async (order) => {
+            const items = await OrderItem.find({ order_id: order._id }).populate("product_id");
+            return {
+                ...order.toObject(),
+                items
+            };
+        }));
+
+        return NextResponse.json({ success: true, orders: ordersWithItems });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}
+
 export async function POST(request: Request) {
     try {
         await connectDB();
@@ -29,7 +63,7 @@ export async function POST(request: Request) {
 
         let total_amount = 0;
         const orderItemsData = [];
-        
+
         // Lặp qua danh sách item gửi lên để tính tiền dựa trên giá trị gốc trong database (Tránh client sửa giá)
         for (const item of items) {
             const product = await Product.findById(item.product_id);
@@ -60,7 +94,7 @@ export async function POST(request: Request) {
         let appliedPromotion = null;
         if (promotion_id) {
             const now = new Date();
-            
+
             // Tìm chính xác cái mã mà khách chọn trong Database
             appliedPromotion = await Promotion.findById(promotion_id);
 
@@ -75,9 +109,9 @@ export async function POST(request: Request) {
 
             // 🚨 Kiểm tra xem đơn hàng đã đạt giá trị tối thiểu (ngưỡng) để dùng mã này chưa
             if (total_amount < appliedPromotion.threshold_amount) {
-                return NextResponse.json({ 
-                success: false, 
-                message: `Đơn hàng chưa đạt mức tối thiểu. Bạn cần mua thêm để đạt ${appliedPromotion.threshold_amount.toLocaleString('vi-VN')}đ để áp dụng mã này!` 
+                return NextResponse.json({
+                    success: false,
+                    message: `Đơn hàng chưa đạt mức tối thiểu. Bạn cần mua thêm để đạt ${appliedPromotion.threshold_amount.toLocaleString('vi-VN')}đ để áp dụng mã này!`
                 }, { status: 400 });
             }
 

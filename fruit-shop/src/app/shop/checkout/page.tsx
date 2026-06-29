@@ -273,6 +273,19 @@ export default function CheckoutPage() {
                                         <div className="flex-grow min-w-0">
                                             <h4 className="text-sm font-bold text-gray-900 truncate">{item.name}</h4>
                                             <p className="text-xs text-gray-500 mt-0.5">Số lượng: {item.quantity}</p>
+                                            {item.addons && item.addons.length > 0 && (
+                                                <div className="mt-1">
+                                                    <p className="text-xs text-gray-400 font-medium">- Dịch vụ thêm:</p>
+                                                    <div className="pl-3">
+                                                        {item.addons.map((addon, idx) => (
+                                                            <div key={idx} className="flex justify-between text-xs text-gray-600 mt-0.5">
+                                                                <span>{addon.name}</span>
+                                                                <span className="text-gray-400">+{formatCurrency(addon.price)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                             <p className="text-sm font-bold text-green-600 mt-1">{formatCurrency(item.price * item.quantity)}</p>
                                         </div>
                                     </div>

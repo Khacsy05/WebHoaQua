@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fetchCategories, createCategory, updateCategory, deleteCategory } from '@/services/productService';
 import { Category } from '@/types/shop';
+import { fetchCategories, updateCategory, createCategory, deleteCategory } from '@/services/categoriesService';
+import { toast } from 'sonner';
 
 export default function AdminCategoriesPage() {
     const [categories, setCategories] = useState<Category[]>([]);
@@ -81,16 +82,16 @@ export default function AdminCategoriesPage() {
             }
 
             if (res.success) {
-                setFormSuccess(editingCategory ? 'Cập nhật danh mục thành công!' : 'Thêm danh mục mới thành công!');
+                toast.success(editingCategory ? 'Cập nhật danh mục thành công!' : 'Thêm danh mục mới thành công!');
+                setIsModalOpen(false);
+                setEditingCategory(null);
                 await loadData();
-                setTimeout(() => {
-                    setIsModalOpen(false);
-                    setEditingCategory(null);
-                }, 1200);
             } else {
-                setFormError(res.message || 'Không thể thực hiện tác vụ này');
+                toast.error(res.message || 'Có lỗi xảy ra');
+                setFormError(res.message || 'Có lỗi xảy ra');
             }
         } catch (err: any) {
+            toast.error(err.message || 'Có lỗi xảy ra');
             setFormError(err.message || 'Có lỗi xảy ra');
         } finally {
             setFormLoading(false);
@@ -114,11 +115,14 @@ export default function AdminCategoriesPage() {
             if (res.success) {
                 setCategoryToDelete(null);
                 await loadData();
+                toast.success(res.message);
             } else {
-                setDeleteError(res.message || 'Không thể xóa danh mục này');
+                toast.error(res.message || 'Có lỗi xảy ra');
+                setDeleteError(res.message || 'Có lỗi xảy ra');
             }
         } catch (err: any) {
-            setDeleteError(err.message || 'Có lỗi mạng xảy ra');
+            toast.error(err.message || 'Có lỗi xảy ra');
+            setDeleteError(err.message || 'Có lỗi xảy ra');
         } finally {
             setDeleteLoading(false);
         }
@@ -200,13 +204,13 @@ export default function AdminCategoriesPage() {
                                                             onClick={() => handleOpenEditModal(cat)}
                                                             className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-green-600 hover:bg-green-50 hover:border-green-300 transition focus:outline-none"
                                                         >
-                                                            ✏️ Sửa
+                                                            Sửa
                                                         </button>
                                                         <button
                                                             onClick={() => handleOpenDeleteConfirm(cat)}
                                                             className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-red-600 hover:bg-red-50 hover:border-red-300 transition focus:outline-none"
                                                         >
-                                                            🗑️ Xóa
+                                                            Xóa
                                                         </button>
                                                     </div>
                                                 </td>
@@ -356,7 +360,7 @@ export default function AdminCategoriesPage() {
 
                         {/* Title */}
                         <h3 className="text-lg font-bold text-gray-900 mb-2">Xác nhận xóa danh mục</h3>
-                        
+
                         <p className="text-sm text-gray-500 mb-6 leading-relaxed">
                             Bạn có chắc chắn muốn xóa danh mục <strong className="text-gray-800">"{categoryToDelete.name}"</strong>?
                             <span className="block mt-2 text-xs text-red-500 font-semibold">Lưu ý: Chỉ có thể xóa nếu danh mục không chứa bất kỳ sản phẩm nào.</span>

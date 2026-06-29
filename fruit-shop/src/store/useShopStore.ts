@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Product, Category } from '@/types/shop';
-import { fetchProducts, fetchCategories } from '@/services/productService';
+import { fetchProducts } from '@/services/productService';
+import { fetchCategories } from '@/services/categoriesService';
 
 interface ShopState {
     products: Product[];

@@ -39,7 +39,7 @@ export function getCart(username?: string | null): CartData {
     }
 }
 
-export function addToCart(product: Product, quantity: number, addonsList: string[], username?: string | null) {
+export function addToCart(product: Product, quantity: number, addonsList: { name: string; price: number }[], username?: string | null) {
     if (typeof window === "undefined") return;
     const cartKey = getCartKey(username);
     const cartData = getCart(username);
@@ -47,17 +47,14 @@ export function addToCart(product: Product, quantity: number, addonsList: string
 
     // Generate a unique key based on productId and selected addons
     const productId = product.id || product._id;
-    const addonKey = [...addonsList].sort().join("-");
+    const addonKey = addonsList.map(a => a.name).sort().join("-");
     const itemCartKey = productId + (addonKey ? "_" + addonKey : "");
 
     // Calculate item price with addons
     const basePrice = Number(product.price);
-    const addonPrices: Record<string, number> = { engrave: 50000, peel: 20000, wrap: 15000 };
     let finalUnitPrice = basePrice;
     addonsList.forEach(addon => {
-        if (addonPrices[addon]) {
-            finalUnitPrice += addonPrices[addon];
-        }
+        finalUnitPrice += addon.price;
     });
 
     const existingIndex = items.findIndex(item => item.cartKey === itemCartKey);
@@ -78,6 +75,42 @@ export function addToCart(product: Product, quantity: number, addonsList: string
     }
 
     localStorage.setItem(cartKey, JSON.stringify(items));
+}
+
+export function removeAddonFromCartItem(cartKey: string, addonName: string, username?: string | null) {
+    if (typeof window === "undefined") return;
+    const storageKey = getCartKey(username);
+    const cartData = getCart(username);
+    const items = cartData.items;
+
+    const item = items.find(i => i.cartKey === cartKey);
+    if (item && item.addons) {
+        const addonIndex = item.addons.findIndex(a => a.name === addonName);
+        if (addonIndex > -1) {
+            const removedAddon = item.addons[addonIndex];
+            // Khấu trừ tiền dịch vụ bị xóa khỏi đơn giá
+            item.price -= removedAddon.price;
+            // Xóa dịch vụ khỏi mảng
+            item.addons.splice(addonIndex, 1);
+            
+            // Tính toán lại cartKey mới do danh sách dịch vụ thay đổi
+            const productId = item.id || item._id;
+            const addonKey = item.addons.map(a => a.name).sort().join("-");
+            const newCartKey = productId + (addonKey ? "_" + addonKey : "");
+            
+            // Nếu trùng cartKey mới với phần tử đã có sẵn, tiến hành gộp số lượng
+            const duplicateIndex = items.findIndex(i => i.cartKey === newCartKey && i !== item);
+            if (duplicateIndex > -1) {
+                items[duplicateIndex].quantity += item.quantity;
+                const currentIdx = items.indexOf(item);
+                items.splice(currentIdx, 1);
+            } else {
+                item.cartKey = newCartKey;
+            }
+        }
+    }
+
+    localStorage.setItem(storageKey, JSON.stringify(items));
 }
 
 export function updateCartQuantity(cartKey: string, quantity: number, username?: string | null) {

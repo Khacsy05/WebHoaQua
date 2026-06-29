@@ -17,6 +17,11 @@ export interface Product {
     category_id?: Category;
 }
 
+export interface CartAddon {
+    name: string;
+    price: number;
+}
+
 export interface CartItem {
     cartKey: string;
     id?: number;
@@ -26,7 +31,7 @@ export interface CartItem {
     quantity: number;
     stock: number;
     image?: string;
-    addons?: string[];
+    addons?: CartAddon[];
 }
 
 export interface CartData {
@@ -58,4 +63,33 @@ export interface Promotion {
     discount_percent: number;
     threshold_amount: number;
     active: boolean;
+}
+
+export interface Addon {
+    _id?: string;
+    id?: string | number;
+    name: string;
+    price: number;
+    description?: string;
+    active: boolean;
+}
+
+export interface CustomerType {
+    _id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    address?: string;
+}
+
+export interface Order {
+    _id?: string;
+    customer_id: CustomerType | string;
+    status: "NEW" | "PENDING" | "SHIPPING" | "DELIVERED" | "CANCELLED";
+    total_amount: number;
+    discount_amount: number;
+    payable_amount: number;
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
+    items?: any[];
 }

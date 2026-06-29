@@ -97,16 +97,16 @@ export default function AdminDashboardPage() {
     if (error) {
         return (
             <div className="bg-red-50 text-red-600 p-6 rounded-3xl border border-red-100 font-semibold text-center">
-                ⚠️ Có lỗi xảy ra: {error}
+                Có lỗi xảy ra: {error}
             </div>
         );
     }
 
     const statCards = [
-        { name: 'Tổng doanh thu', value: formatCurrency(stats?.totalSales || 0), icon: '💰', desc: 'Không tính đơn hủy', color: 'from-emerald-400 to-teal-500' },
-        { name: 'Tổng đơn hàng', value: stats?.totalOrders || 0, icon: '📦', desc: 'Đã phát sinh', color: 'from-blue-400 to-indigo-500' },
-        { name: 'Tổng sản phẩm', value: stats?.totalProducts || 0, icon: '🍎', desc: 'Có trên hệ thống', color: 'from-amber-400 to-orange-500' },
-        { name: 'Số khách hàng', value: stats?.totalCustomers || 0, icon: '👥', desc: 'Đăng ký thành viên', color: 'from-purple-400 to-pink-500' },
+        { name: 'Tổng doanh thu', value: formatCurrency(stats?.totalSales || 0), desc: 'Không tính đơn hủy', color: 'from-emerald-400 to-teal-500' },
+        { name: 'Tổng đơn hàng', value: stats?.totalOrders || 0, desc: 'Đã phát sinh', color: 'from-blue-400 to-indigo-500' },
+        { name: 'Tổng sản phẩm', value: stats?.totalProducts || 0, desc: 'Có trên hệ thống', color: 'from-amber-400 to-orange-500' },
+        { name: 'Số khách hàng', value: stats?.totalCustomers || 0, desc: 'Đăng ký thành viên', color: 'from-purple-400 to-pink-500' },
     ];
 
     return (
@@ -114,7 +114,7 @@ export default function AdminDashboardPage() {
             {/* Greeting */}
             <div className="bg-white rounded-3xl border border-gray-100 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
                 <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">Chúc bạn một ngày làm việc hiệu quả! ☀️</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-1">Chúc bạn một ngày làm việc hiệu quả!</h3>
                     <p className="text-sm text-gray-500 font-medium">Theo dõi các chỉ số bán hàng và quản trị hoạt động cửa hàng FruitShop.</p>
                 </div>
                 <div className="flex gap-2">
@@ -133,9 +133,7 @@ export default function AdminDashboardPage() {
                             <span className="text-2xl font-extrabold text-gray-900 block">{card.value}</span>
                             <span className="text-[10px] font-semibold text-gray-400 block">{card.desc}</span>
                         </div>
-                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${card.color} flex items-center justify-center text-white text-xl shadow-md`}>
-                            {card.icon}
-                        </div>
+
                     </div>
                 ))}
             </div>

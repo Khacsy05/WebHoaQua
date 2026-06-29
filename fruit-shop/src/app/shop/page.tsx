@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import CartDrawer from '@/components/CartDrawer';
 import { formatCurrency, getProductImage, isTokenExpired } from '@/utils/helpers';
-import { Product, Category, CartData } from '@/types/shop';
+import { CartData } from '@/types/shop';
 import { getCart } from '@/utils/cart';
-import { fetchProducts, fetchCategories } from '@/services/productService';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useShopStore } from '@/store/useShopStore';
 import { updateCurrentUser } from '@/services/authService';
@@ -172,6 +171,17 @@ export default function ShopPage() {
                                                 Thông tin tài khoản
                                             </button>
                                         </li>
+                                         {user.role !== 'ROLE_ADMIN' && user.role !== 'ROLE_MANAGER' && (
+                                             <li>
+                                                 <Link
+                                                     href="/shop/orders"
+                                                     onClick={() => setIsDropdownOpen(false)}
+                                                     className="w-full block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                                                 >
+                                                     Đơn hàng của tôi
+                                                 </Link>
+                                             </li>
+                                         )}
                                         <li>
                                             <button
                                                 onClick={() => {
@@ -209,8 +219,8 @@ export default function ShopPage() {
             {/* CATEGORIES */}
             <section id="products" className="container mx-auto px-4 mt-12">
                 <div className="flex flex-wrap gap-2 border-b border-gray-100 pb-4 items-center">
-                    <button 
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition ${selectedCategoryId === null ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`} 
+                    <button
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition ${selectedCategoryId === null ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
                         onClick={() => setSelectedCategoryId(null)}
                     >
                         Tất cả
@@ -218,9 +228,9 @@ export default function ShopPage() {
                     {(isCategoriesExpanded ? categories : categories.slice(0, 7)).map(category => {
                         const catId = category._id || category.id;
                         return (
-                            <button 
-                                key={catId} 
-                                className={`px-4 py-2 rounded-full text-sm font-medium transition ${catId === selectedCategoryId ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`} 
+                            <button
+                                key={catId}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition ${catId === selectedCategoryId ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
                                 onClick={() => setSelectedCategoryId(catId || null)}
                             >
                                 {category.name}

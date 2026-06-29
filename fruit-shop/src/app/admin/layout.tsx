@@ -46,12 +46,13 @@ export default function AdminLayout({
     }
 
     const menuItems = [
-        { name: 'Tổng quan', path: '/admin/dashboard', icon: '📊' },
-        { name: 'Danh mục', path: '/admin/categories', icon: '📁' },
-        { name: 'Sản phẩm', path: '/admin/products', icon: '🍎' },
-        { name: 'Đơn hàng', path: '/admin/orders', icon: '📦' },
-        { name: 'Tài khoản', path: '/admin/accounts', icon: '👥' },
-        { name: 'Khuyến mãi', path: '/admin/promotions', icon: '🏷️' },
+        { name: 'Tổng quan', path: '/admin/dashboard' },
+        { name: 'Danh mục', path: '/admin/categories' },
+        { name: 'Sản phẩm', path: '/admin/products' },
+        { name: 'Đơn hàng', path: '/admin/orders' },
+        { name: 'Khách hàng', path: '/admin/customers' },
+        { name: 'Khuyến mãi', path: '/admin/promotions' },
+        { name: 'Dịch vụ thêm', path: '/admin/addons' },
     ];
 
     return (
@@ -73,7 +74,6 @@ export default function AdminLayout({
                     {/* Brand */}
                     <div className="p-6 border-b border-gray-50 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <span className="text-2xl">🌱</span>
                             <div>
                                 <h1 className="text-lg font-bold text-gray-900 leading-tight">FruitShop</h1>
                                 <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Kênh quản trị</span>
@@ -103,7 +103,6 @@ export default function AdminLayout({
                                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                         }`}
                                 >
-                                    <span className="text-lg">{item.icon}</span>
                                     {item.name}
                                 </Link>
                             );
@@ -134,7 +133,7 @@ export default function AdminLayout({
                             href="/shop"
                             className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
                         >
-                            🏪 Quay lại Cửa hàng
+                            Quay lại Cửa hàng
                         </Link>
                         <button
                             onClick={() => {
@@ -143,7 +142,7 @@ export default function AdminLayout({
                             }}
                             className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-xs font-bold text-red-600 transition focus:outline-none"
                         >
-                            🚪 Đăng xuất
+                            Đăng xuất
                         </button>
                     </div>
                 </div>

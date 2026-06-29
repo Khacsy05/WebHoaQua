@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, getProductImage } from '@/utils/helpers';
-import { updateCartQuantity, removeFromCart } from '@/utils/cart';
+import { updateCartQuantity, removeFromCart, removeAddonFromCartItem } from '@/utils/cart';
 import { CartData, User } from '@/types/shop';
 
 interface CartDrawerProps {
@@ -23,6 +23,11 @@ export default function CartDrawer({ isOpen, cartData, user, onClose, onCartUpda
 
     const removeItem = (cartKey: string) => {
         removeFromCart(cartKey, user?.name);
+        onCartUpdated();
+    };
+
+    const handleRemoveAddon = (cartKey: string, addonName: string) => {
+        removeAddonFromCartItem(cartKey, addonName, user?.name);
         onCartUpdated();
     };
 
@@ -59,14 +64,37 @@ export default function CartDrawer({ isOpen, cartData, user, onClose, onCartUpda
                                 <img src={getProductImage(item.image)} className="w-16 h-16 object-contain" alt={item.name} />
                                 <div className="flex-grow">
                                     <h5 className="text-sm font-bold truncate">{item.name}</h5>
-                                    <span className="text-sm text-gray-500">{formatCurrency(item.price)}</span>
-                                    <div className="flex justify-between items-center mt-2">
+                                    <div className="flex justify-between items-center mt-0.5">
+                                        <span className="text-sm text-gray-500">{formatCurrency(item.price)}</span>
+                                        <span className="text-xs font-bold text-gray-400">Đơn giá</span>
+                                    </div>
+
+                                    {/* Danh sách dịch vụ đi kèm */}
+                                    {item.addons && item.addons.length > 0 && (
+                                        <div className="mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100 space-y-1">
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Dịch vụ đi kèm:</p>
+                                            {item.addons.map((addon, index) => (
+                                                <div key={index} className="flex items-center justify-between text-xs text-gray-600">
+                                                    <span>{addon.name} (+{formatCurrency(addon.price)})</span>
+                                                    <button
+                                                        onClick={() => handleRemoveAddon(item.cartKey, addon.name)}
+                                                        className="text-red-500 hover:text-red-700 ml-2 font-bold w-4 h-4 flex items-center justify-center rounded hover:bg-red-50 focus:outline-none transition"
+                                                        title="Xóa dịch vụ này"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-between items-center mt-3">
                                         <div className="flex border rounded">
                                             <button className="px-2" onClick={() => updateQuantity(item.cartKey, item.quantity - 1)}>-</button>
-                                            <span className="px-3 text-xs">{item.quantity}</span>
+                                            <span className="px-3 text-xs flex items-center">{item.quantity}</span>
                                             <button className="px-2" onClick={() => updateQuantity(item.cartKey, item.quantity + 1)} disabled={item.quantity >= item.stock}>+</button>
                                         </div>
-                                        <button className="text-xs text-red-500" onClick={() => removeItem(item.cartKey)}>Xóa</button>
+                                        <button className="text-xs text-red-500 font-bold" onClick={() => removeItem(item.cartKey)}>Xóa sản phẩm</button>
                                     </div>
                                 </div>
                             </div>
