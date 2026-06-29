@@ -14,18 +14,6 @@ export async function fetchProducts(categoryId?: string | number | null): Promis
     }
 }
 
-export async function fetchCategories(): Promise<Category[]> {
-    try {
-        const response = await fetch('/api/categories');
-        if (!response.ok) throw new Error("Failed to fetch categories");
-        const res = await response.json();
-        return res.success && Array.isArray(res.data) ? res.data : [];
-    } catch (error) {
-        console.error("Lỗi khi tải danh mục:", error);
-        return [];
-    }
-}
-
 export async function fetchProductById(id: string): Promise<Product | null> {
     try {
         const response = await fetch(`/api/products/${id}`);
@@ -38,50 +26,112 @@ export async function fetchProductById(id: string): Promise<Product | null> {
     }
 }
 
-export async function createCategory(name: string, description?: string): Promise<{ success: boolean; message?: string; data?: Category }> {
+export async function createProduct(
+    name: string,
+    price: number,
+    image: File | null,
+    category_id: string,
+    description?: string,
+    stock?: number
+) {
     try {
-        const response = await fetch('/api/categories', {
+
+        const formData = new FormData();
+
+        formData.append("name", name);
+        formData.append("price", price.toString());
+        formData.append("category_id", category_id);
+
+        if (description) formData.append("description", description);
+        if (stock) formData.append("stock", stock.toString());
+
+        if (image) {
+            formData.append("image", image);
+        }
+
+        const authHeaders = getAuthHeaders();
+
+        if (authHeaders && 'Content-Type' in authHeaders) {
+            delete authHeaders['Content-Type'];
+        }
+        const response = await fetch('/api/products', {
             method: 'POST',
-            headers: {
-                ...getAuthHeaders(),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ name, description })
+            headers: authHeaders,
+            body: formData
         });
-        return await response.json();
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to create product");
+        }
+
+        const res = await response.json();
+        return res.success ? res.data : null;
+
     } catch (error: any) {
-        console.error("Lỗi khi thêm danh mục:", error);
-        return { success: false, message: error.message || "Lỗi mạng" };
+        console.error("Lỗi khi tạo sản phẩm:", error);
+        throw error;
     }
 }
 
-export async function updateCategory(id: string, name: string, description?: string): Promise<{ success: boolean; message?: string; data?: Category }> {
+export async function updateProduct(
+    id: string,
+    name: string,
+    price: number,
+    image: File | null,
+    category_id: string,
+    description?: string,
+    stock?: number,
+) {
     try {
-        const response = await fetch(`/api/categories/${id}`, {
+        const formData = new FormData();
+
+        formData.append("name", name);
+        formData.append("price", price.toString());
+        formData.append("category_id", category_id);
+
+        if (description) formData.append("description", description);
+        if (stock) formData.append("stock", stock.toString());
+
+        if (image) {
+            formData.append("image", image);
+        }
+
+        const authHeaders = getAuthHeaders();
+
+        if (authHeaders && 'Content-Type' in authHeaders) {
+            delete authHeaders['Content-Type'];
+        }
+
+
+        const response = await fetch(`/api/products/${id}`, {
             method: 'PUT',
-            headers: {
-                ...getAuthHeaders(),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ name, description })
+            headers: authHeaders,
+            body: formData
         });
-        return await response.json();
-    } catch (error: any) {
-        console.error("Lỗi khi cập nhật danh mục:", error);
-        return { success: false, message: error.message || "Lỗi mạng" };
+        if (!response.ok) throw new Error("Failed to update product");
+        const res = await response.json();
+        return res.success ? res.data : null;
+    } catch (error) {
+        console.error("Lỗi khi cập nhật sản phẩm:", error);
+        throw error;
     }
 }
 
-export async function deleteCategory(id: string): Promise<{ success: boolean; message?: string }> {
+
+export async function deleteProduct(id: string) {
     try {
-        const response = await fetch(`/api/categories/${id}`, {
+        const authHeaders = getAuthHeaders();
+        const response = await fetch(`/api/products/${id}`, {
             method: 'DELETE',
-            headers: getAuthHeaders()
+            headers: authHeaders
         });
-        return await response.json();
-    } catch (error: any) {
-        console.error("Lỗi khi xóa danh mục:", error);
-        return { success: false, message: error.message || "Lỗi mạng" };
+        if (!response.ok) throw new Error("Failed to delete product");
+        const res = await response.json();
+        return res.success ? res.data : null;
+    } catch (error) {
+        console.error("Lỗi khi xóa sản phẩm:", error);
+        throw error;
     }
 }
 

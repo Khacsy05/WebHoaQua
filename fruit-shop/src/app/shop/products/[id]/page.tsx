@@ -8,23 +8,22 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useShopStore } from '@/store/useShopStore';
 import { addToCart } from '@/utils/cart';
 import { formatCurrency, getProductImage, showNotification } from '@/utils/helpers';
-import { Product } from '@/types/shop';
+import { Addon, Product } from '@/types/shop';
+import { fetchAddons } from '@/services/addonService';
 
-interface AddonsState {
-    engrave: boolean;
-    peel: boolean;
-    wrap: boolean;
-}
+
 
 export default function ProductDetailPage() {
     const params = useParams();
     const router = useRouter();
     const { user, loadUser } = useAuthStore();
-
+    interface LocalAddon extends Addon {
+        selected?: boolean;
+    }
+    const [addons, setAddons] = useState<LocalAddon[]>([]);
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [quantity, setQuantity] = useState<number>(1);
-    const [addons, setAddons] = useState<AddonsState>({ engrave: false, peel: false, wrap: false });
     const [engravingText, setEngravingText] = useState<string>('');
     const [totalPrice, setTotalPrice] = useState<number>(0);
 
@@ -64,26 +63,49 @@ export default function ProductDetailPage() {
         loadProduct();
     }, [params?.id]);
 
+    const loadAddons = async () => {
+        setLoading(true);
+        try {
+            const data = await fetchAddons();
+            // Lọc các dịch vụ khả dụng từ DB và khởi tạo trạng thái selected = false
+            const availableAddons = data
+                .filter((a: Addon) => a.active)
+                .map((a: Addon) => ({ ...a, selected: false }));
+            setAddons(availableAddons);
+        } catch (err: any) {
+            console.error("Lỗi khi tải danh sách dịch vụ thêm:", err);
+        } finally {
+            setLoading(false);
+        }
+    }
+    useEffect(() => {
+        loadAddons();
+    }, []);
+
     useEffect(() => {
         if (!product) return;
         let base = Number(product.price);
-        if (addons.engrave) base += addonPrices.engrave;
-        if (addons.peel) base += addonPrices.peel;
-        if (addons.wrap) base += addonPrices.wrap;
+        addons.forEach(addon => {
+            if (addon.selected) {
+                base += addon.price;
+            }
+        });
         setTotalPrice(base);
     }, [addons, product]);
 
-    const handleCheckboxChange = (key: keyof AddonsState) => {
-        setAddons(prev => ({ ...prev, [key]: !prev[key] }));
+    const handleCheckboxChange = (id: string) => {
+        setAddons(prev => prev.map(addon =>
+            addon._id === id ? { ...addon, selected: !addon.selected } : addon
+        ));
     };
 
     const getSelectedAddonsList = () => {
-        const list: string[] = [];
-        if (addons.engrave) {
-            list.push(`engrave${engravingText ? ` (${engravingText})` : ''}`);
-        }
-        if (addons.peel) list.push('peel');
-        if (addons.wrap) list.push('wrap');
+        const list: { name: string; price: number }[] = [];
+        addons.forEach(addon => {
+            if (addon.selected) {
+                list.push({ name: addon.name, price: addon.price });
+            }
+        });
         return list;
     };
 
@@ -122,8 +144,8 @@ export default function ProductDetailPage() {
             <div className="max-w-5xl mx-auto">
                 {/* Back Button & Breadcrumbs */}
                 <div className="mb-6 flex items-center justify-between">
-                    <button 
-                        onClick={() => router.back()} 
+                    <button
+                        onClick={() => router.back()}
                         className="text-green-600 hover:text-green-700 font-semibold flex items-center gap-1.5 transition focus:outline-none"
                     >
                         <span>&larr;</span> Quay lại
@@ -139,9 +161,9 @@ export default function ProductDetailPage() {
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-8 p-6 md:p-8">
                     {/* Left Column: Image */}
                     <div className="flex items-center justify-center bg-gray-50 rounded-2xl min-h-[300px] md:min-h-[450px] overflow-hidden">
-                        <img 
-                            src={getProductImage(product.image)} 
-                            alt={product.name} 
+                        <img
+                            src={getProductImage(product.image)}
+                            alt={product.name}
                             className="w-full h-full min-h-[300px] md:min-h-[450px] object-cover hover:scale-105 transition duration-300"
                         />
                     </div>
@@ -173,73 +195,25 @@ export default function ProductDetailPage() {
                         {/* Custom Addons / Services Selection */}
                         <div className="border-t border-b py-5 space-y-4">
                             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Dịch vụ đi kèm tùy chọn:</h3>
-                            <div className="grid grid-cols-1 gap-3">
-                                {/* Peel Addon */}
-                                <div 
-                                    onClick={() => handleCheckboxChange('peel')}
-                                    className={`flex items-center justify-between p-3.5 border rounded-2xl cursor-pointer transition select-none ${addons.peel ? 'border-green-600 bg-green-50/40 text-green-950 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center text-white text-xs ${addons.peel ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
-                                            {addons.peel && '✓'}
+                            <div className="">
+                                {addons.map((addon, index) => (
+                                    <div
+                                        key={addon._id || index}
+                                        onClick={() => handleCheckboxChange(String(addon._id))}
+                                        className={`flex items-center justify-between p-3.5 border rounded-2xl cursor-pointer transition select-none mb-3 last:mb-0 ${addon.selected ? 'border-green-600 bg-green-50/40 text-green-950 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded-md border flex items-center justify-center text-white text-xs ${addon.selected ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
+                                                {addon.selected && '✓'}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold">{addon.name}</p>
+                                                <p className="text-xs opacity-75">{addon.description}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-bold">Gọt vỏ / Cắt sẵn</p>
-                                            <p className="text-xs opacity-75">Hộp đóng sẵn sạch sẽ kèm nĩa</p>
-                                        </div>
+                                        <span className="text-sm font-semibold">+{formatCurrency(addon.price)}</span>
                                     </div>
-                                    <span className="text-sm font-semibold">+{formatCurrency(addonPrices.peel)}</span>
-                                </div>
-
-                                {/* Wrap Gift Addon */}
-                                <div 
-                                    onClick={() => handleCheckboxChange('wrap')}
-                                    className={`flex items-center justify-between p-3.5 border rounded-2xl cursor-pointer transition select-none ${addons.wrap ? 'border-green-600 bg-green-50/40 text-green-950 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center text-white text-xs ${addons.wrap ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
-                                            {addons.wrap && '✓'}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-bold">Hộp quà / Đóng gói sang trọng</p>
-                                            <p className="text-xs opacity-75">Kèm nơ trang trí cao cấp</p>
-                                        </div>
-                                    </div>
-                                    <span className="text-sm font-semibold">+{formatCurrency(addonPrices.wrap)}</span>
-                                </div>
-
-                                {/* Engraving Addon */}
-                                <div 
-                                    onClick={() => handleCheckboxChange('engrave')}
-                                    className={`flex items-center justify-between p-3.5 border rounded-2xl cursor-pointer transition select-none ${addons.engrave ? 'border-green-600 bg-green-50/40 text-green-950 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center text-white text-xs ${addons.engrave ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
-                                            {addons.engrave && '✓'}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-bold">Khắc chữ / Vẽ nghệ thuật</p>
-                                            <p className="text-xs opacity-75">Khắc laser tên, lời chúc lên quả (dưa hấu, bưởi...)</p>
-                                        </div>
-                                    </div>
-                                    <span className="text-sm font-semibold">+{formatCurrency(addonPrices.engrave)}</span>
-                                </div>
-
-                                {addons.engrave && (
-                                    <div className="mt-1">
-                                        <label htmlFor="engravingText" className="block text-xs font-semibold text-gray-500 mb-1">Nội dung khắc chữ (Tối đa 20 ký tự):</label>
-                                        <input 
-                                            type="text" 
-                                            id="engravingText"
-                                            maxLength={20}
-                                            placeholder="Ví dụ: Chúc Mừng Năm Mới"
-                                            className="w-full px-3 py-2 border rounded-lg text-sm text-gray-900 focus:ring-1 focus:ring-green-500 focus:border-green-600 outline-none transition"
-                                            value={engravingText}
-                                            onChange={(e) => setEngravingText(e.target.value)}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                )}
+                                ))}
                             </div>
                         </div>
 
@@ -248,14 +222,14 @@ export default function ProductDetailPage() {
                             <div className="flex items-center justify-between">
                                 <span className="text-sm font-bold text-gray-700">Số lượng mua:</span>
                                 <div className="flex items-center border rounded-xl bg-gray-50 p-1">
-                                    <button 
+                                    <button
                                         onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
                                         className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition"
                                     >
                                         -
                                     </button>
                                     <span className="px-4 text-sm font-extrabold text-gray-800">{quantity}</span>
-                                    <button 
+                                    <button
                                         onClick={() => setQuantity(prev => Math.min(product.stock, prev + 1))}
                                         disabled={quantity >= product.stock}
                                         className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition disabled:opacity-50"
@@ -264,7 +238,7 @@ export default function ProductDetailPage() {
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div className="text-xs text-right text-gray-400">
                                 Kho còn lại: <strong className="text-gray-600">{product.stock}</strong> sản phẩm
                             </div>
