@@ -30,7 +30,6 @@ export const useShopStore = create<ShopState>((set, get) => ({
                 currentCats = await fetchCategories();
             }
 
-            // Only fetch products if forced or not loaded yet
             const productsData = await fetchProducts(categoryId);
 
             set({

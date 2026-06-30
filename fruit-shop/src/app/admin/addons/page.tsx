@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { fetchAddons, createAddon, updateAddon, deleteAddon } from '@/services/addonService';
-import { Addon } from '@/types/shop';
+import { fetchCategories } from '@/services/categoriesService';
+import { Addon, Category } from '@/types/shop';
 import { formatCurrency } from '@/utils/helpers';
 import { toast } from 'sonner';
 
 export default function AdminAddonsPage() {
     const [addons, setAddons] = useState<Addon[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -20,6 +22,7 @@ export default function AdminAddonsPage() {
     const [price, setPrice] = useState<number | string>(0);
     const [description, setDescription] = useState('');
     const [active, setActive] = useState(true);
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
     const [formLoading, setFormLoading] = useState(false);
     const [formError, setFormError] = useState('');
@@ -33,11 +36,15 @@ export default function AdminAddonsPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const data = await fetchAddons();
-            setAddons(data);
+            const [addonsData, categoriesData] = await Promise.all([
+                fetchAddons(),
+                fetchCategories()
+            ]);
+            setAddons(addonsData);
+            setCategories(categoriesData);
             setCurrentPage(1); // Reset to page 1
         } catch (err: any) {
-            setError(err.message || 'Lỗi khi tải danh sách dịch vụ thêm');
+            setError(err.message || 'Lỗi khi tải danh sách dữ liệu');
             toast.error(err.message || 'Lỗi tải dữ liệu');
         } finally {
             setLoading(false);
@@ -54,6 +61,7 @@ export default function AdminAddonsPage() {
         setPrice(0);
         setDescription('');
         setActive(true);
+        setSelectedCategoryIds([]);
         setFormError('');
         setFormSuccess('');
         setIsModalOpen(true);
@@ -65,6 +73,13 @@ export default function AdminAddonsPage() {
         setPrice(addon.price);
         setDescription(addon.description || '');
         setActive(addon.active);
+
+        // Nạp danh sách các ID danh mục đã được áp dụng cho addon này
+        const catIds = addon.allowed_categories
+            ? addon.allowed_categories.map(c => typeof c === 'object' ? c._id || c.id : c)
+            : [];
+        setSelectedCategoryIds(catIds.filter((id): id is string => typeof id === 'string'));
+
         setFormError('');
         setFormSuccess('');
         setIsModalOpen(true);
@@ -94,14 +109,16 @@ export default function AdminAddonsPage() {
                     name.trim(),
                     Number(price) || 0,
                     description,
-                    active
+                    active,
+                    selectedCategoryIds
                 );
             } else {
                 res = await createAddon(
                     name.trim(),
                     Number(price) || 0,
                     description,
-                    active
+                    active,
+                    selectedCategoryIds
                 );
             }
 
@@ -177,7 +194,7 @@ export default function AdminAddonsPage() {
             <div className="bg-white rounded-3xl border border-gray-100 p-6 md:p-8 flex items-center justify-between shadow-sm">
                 <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-1">Quản lý Dịch vụ đi kèm</h3>
-                    <p className="text-sm text-gray-500 font-medium">Cấu hình các dịch vụ gia tăng như đóng hộp quà, gọt hoa quả, in thiệp...</p>
+                    <p className="text-sm text-gray-500 font-medium">Cấu hình các dịch vụ gia tăng như đóng hộp quà, gọt hoa quả, in thiệp và chỉ định danh mục áp dụng.</p>
                 </div>
                 <button
                     onClick={handleOpenCreateModal}
@@ -199,11 +216,12 @@ export default function AdminAddonsPage() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-gray-50/50 border-b border-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                <th className="px-6 py-4 w-20">#</th>
-                                <th className="px-6 py-4">Tên dịch vụ</th>
+                                <th className="px-6 py-4 w-16">#</th>
+                                <th className="px-6 py-4 w-48">Tên dịch vụ</th>
                                 <th className="px-6 py-4">Mô tả</th>
-                                <th className="px-6 py-4">Đơn giá</th>
-                                <th className="px-6 py-4">Trạng thái</th>
+                                <th className="px-6 py-4 w-44">Danh mục được áp dụng</th>
+                                <th className="px-6 py-4 w-28">Đơn giá</th>
+                                <th className="px-6 py-4 w-28">Trạng thái</th>
                                 <th className="px-6 py-4 w-40 text-center">Thao tác</th>
                             </tr>
                         </thead>
@@ -214,6 +232,9 @@ export default function AdminAddonsPage() {
                                     .map((item, index) => {
                                         const itemId = item._id || '';
                                         const displayIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                                        
+                                        // Danh sách danh mục được hiển thị dưới dạng badge
+                                        const appliedCats = item.allowed_categories || [];
 
                                         return (
                                             <tr key={itemId} className="hover:bg-gray-50/30 transition text-sm">
@@ -223,8 +244,23 @@ export default function AdminAddonsPage() {
                                                 <td className="px-6 py-4 font-bold text-gray-900">
                                                     {item.name}
                                                 </td>
-                                                <td className="px-6 py-4 text-gray-500 font-medium">
-                                                    {item.description || <span className="text-gray-300 italic text-xs">Không có mô tả</span>}
+                                                <td className="px-6 py-4 text-gray-500 font-medium text-xs">
+                                                    {item.description || <span className="text-gray-300 italic">Không có mô tả</span>}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {appliedCats.length === 0 ? (
+                                                        <span className="inline-block px-2 py-0.5 text-[9px] font-bold rounded bg-gray-100 text-gray-500 border border-gray-200">
+                                                            Tất cả danh mục
+                                                        </span>
+                                                    ) : (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {appliedCats.map((cat: any, idx) => (
+                                                                <span key={cat._id || idx} className="inline-block px-1.5 py-0.5 text-[9px] font-bold rounded bg-green-50 text-green-700 border border-green-100">
+                                                                    {cat.name || 'Danh mục đã xóa'}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 font-extrabold text-green-600">
                                                     {item.price === 0 ? 'Miễn phí' : formatCurrency(item.price)}
@@ -261,7 +297,7 @@ export default function AdminAddonsPage() {
                                     })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-10 text-gray-400 font-medium">
+                                    <td colSpan={7} className="text-center py-10 text-gray-400 font-medium">
                                         Không tìm thấy dịch vụ nào. Hãy tạo dịch vụ đầu tiên!
                                     </td>
                                 </tr>
@@ -311,12 +347,12 @@ export default function AdminAddonsPage() {
             {/* CREATE / EDIT MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 md:p-8 relative border border-gray-100 overflow-hidden">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl p-6 md:p-8 relative border border-gray-100 overflow-hidden max-h-[90vh] flex flex-col">
                         {/* Gradient top highlight bar */}
                         <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-400 to-green-600"></div>
 
                         {/* Title */}
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex justify-between items-center mb-5 flex-shrink-0">
                             <h3 className="text-xl font-bold text-gray-900">
                                 {editingAddon ? 'Chỉnh sửa dịch vụ' : 'Thêm dịch vụ mới'}
                             </h3>
@@ -332,19 +368,19 @@ export default function AdminAddonsPage() {
 
                         {/* Messages */}
                         {formError && (
-                            <div className="mb-4 p-3.5 bg-red-50 text-red-600 text-sm rounded-xl font-semibold border border-red-100">
+                            <div className="mb-4 p-3.5 bg-red-50 text-red-600 text-sm rounded-xl font-semibold border border-red-100 flex-shrink-0 animate-shake">
                                 {formError}
                             </div>
                         )}
 
                         {formSuccess && (
-                            <div className="mb-4 p-3.5 bg-green-50 text-green-600 text-sm rounded-xl font-semibold border border-green-100">
+                            <div className="mb-4 p-3.5 bg-green-50 text-green-600 text-sm rounded-xl font-semibold border border-green-100 flex-shrink-0">
                                 {formSuccess}
                             </div>
                         )}
 
                         {/* Form */}
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-grow pr-1.5">
                             <div>
                                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Tên dịch vụ *</label>
                                 <input
@@ -379,12 +415,48 @@ export default function AdminAddonsPage() {
                                 <textarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition text-sm text-gray-900 min-h-[80px] resize-none"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition text-sm text-gray-900 min-h-[60px] resize-none"
                                     placeholder="Ví dụ: Đóng gói hộp kính cao cấp kèm nơ trang trí..."
                                 />
                             </div>
 
-                            <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl">
+                            {/* Category Checkboxes selection */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                                    Danh mục được áp dụng
+                                </label>
+                                <p className="text-[10px] text-gray-400 font-semibold mb-2">
+                                    Chọn các danh mục áp dụng dịch vụ này. Nếu để trống, dịch vụ sẽ mặc định áp dụng cho tất cả.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 p-3 rounded-2xl border border-gray-100 max-h-36 overflow-y-auto">
+                                    {categories.map((cat) => {
+                                        const catId = cat._id || '';
+                                        const isChecked = selectedCategoryIds.includes(catId);
+                                        return (
+                                            <label 
+                                                key={catId} 
+                                                className={`flex items-center gap-2.5 p-2 rounded-xl border transition cursor-pointer select-none ${isChecked ? 'bg-green-50 border-green-200 text-green-800' : 'bg-white border-gray-100 text-gray-700 hover:border-gray-200'}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        setSelectedCategoryIds(prev =>
+                                                            prev.includes(catId)
+                                                                ? prev.filter(id => id !== catId)
+                                                                : [...prev, catId]
+                                                        );
+                                                    }}
+                                                    className="w-4 h-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                                />
+                                                <span className="text-xs font-bold">{cat.name}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl flex-shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => setActive(!active)}
@@ -395,7 +467,7 @@ export default function AdminAddonsPage() {
                                 <span className="text-xs font-bold text-gray-700">Kích hoạt dịch vụ này trên cửa hàng</span>
                             </div>
 
-                            <div className="pt-4 flex gap-3">
+                            <div className="pt-2 flex gap-3 flex-shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => { setIsModalOpen(false); setEditingAddon(null); }}

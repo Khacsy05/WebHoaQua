@@ -11,7 +11,17 @@ import { formatCurrency, getProductImage, showNotification } from '@/utils/helpe
 import { Addon, Product } from '@/types/shop';
 import { fetchAddons } from '@/services/addonService';
 
-
+const isAddonAllowed = (addon: Addon, productCategory: any): boolean => {
+    if (!addon.allowed_categories || addon.allowed_categories.length === 0) return true;
+    if (!productCategory) return true;
+    
+    const prodCatId = typeof productCategory === 'object' ? productCategory._id || productCategory.id : productCategory;
+    
+    return addon.allowed_categories.some((cat: any) => {
+        const catId = typeof cat === 'object' ? cat._id || cat.id : cat;
+        return String(catId) === String(prodCatId);
+    });
+};
 
 export default function ProductDetailPage() {
     const params = useParams();
@@ -102,7 +112,7 @@ export default function ProductDetailPage() {
     const getSelectedAddonsList = () => {
         const list: { name: string; price: number }[] = [];
         addons.forEach(addon => {
-            if (addon.selected) {
+            if (addon.selected && isAddonAllowed(addon, product?.category_id)) {
                 list.push({ name: addon.name, price: addon.price });
             }
         });
@@ -193,29 +203,39 @@ export default function ProductDetailPage() {
                         </div>
 
                         {/* Custom Addons / Services Selection */}
-                        <div className="border-t border-b py-5 space-y-4">
-                            <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Dịch vụ đi kèm tùy chọn:</h3>
-                            <div className="">
-                                {addons.map((addon, index) => (
-                                    <div
-                                        key={addon._id || index}
-                                        onClick={() => handleCheckboxChange(String(addon._id))}
-                                        className={`flex items-center justify-between p-3.5 border rounded-2xl cursor-pointer transition select-none mb-3 last:mb-0 ${addon.selected ? 'border-green-600 bg-green-50/40 text-green-950 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-5 h-5 rounded-md border flex items-center justify-center text-white text-xs ${addon.selected ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
-                                                {addon.selected && '✓'}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold">{addon.name}</p>
-                                                <p className="text-xs opacity-75">{addon.description}</p>
-                                            </div>
+                        {product && addons.length > 0 && (
+                            (() => {
+                                const allowedAddons = addons.filter(addon => isAddonAllowed(addon, product.category_id));
+                                
+                                if (allowedAddons.length === 0) return null;
+                                
+                                return (
+                                    <div className="border-t border-b py-5 space-y-4">
+                                        <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Dịch vụ đi kèm tùy chọn:</h3>
+                                        <div className="">
+                                            {allowedAddons.map((addon, index) => (
+                                                <div
+                                                    key={addon._id || index}
+                                                    onClick={() => handleCheckboxChange(String(addon._id))}
+                                                    className={`flex items-center justify-between p-3.5 border rounded-2xl cursor-pointer transition select-none mb-3 last:mb-0 ${addon.selected ? 'border-green-600 bg-green-50/40 text-green-950 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center text-white text-xs ${addon.selected ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
+                                                            {addon.selected && '✓'}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold">{addon.name}</p>
+                                                            <p className="text-xs opacity-75">{addon.description}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-sm font-semibold">+{formatCurrency(addon.price)}</span>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <span className="text-sm font-semibold">+{formatCurrency(addon.price)}</span>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
+                                );
+                            })()
+                        )}
 
                         {/* Quantity Selector & Checkout Buttons */}
                         <div className="space-y-4">

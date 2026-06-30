@@ -72,6 +72,7 @@ export interface Addon {
     price: number;
     description?: string;
     active: boolean;
+    allowed_categories?: any[];
 }
 
 export interface CustomerType {
