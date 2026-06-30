@@ -17,7 +17,8 @@ export async function createAddon(
     name: string,
     price: number,
     description?: string,
-    active?: boolean
+    active?: boolean,
+    allowed_categories?: string[]
 ) {
     try {
         const authHeaders = getAuthHeaders();
@@ -32,6 +33,7 @@ export async function createAddon(
                 price,
                 description,
                 active,
+                allowed_categories,
             }),
         });
         if (!response.ok) throw new Error("Failed to create addon");
@@ -48,7 +50,8 @@ export async function updateAddon(
     name: string,
     price: number,
     description?: string,
-    active?: boolean
+    active?: boolean,
+    allowed_categories?: string[]
 ) {
     try {
         const authHeaders = getAuthHeaders();
@@ -63,6 +66,7 @@ export async function updateAddon(
                 price,
                 description,
                 active,
+                allowed_categories,
             }),
         });
         if (!response.ok) throw new Error("Failed to update addon");
@@ -89,4 +93,3 @@ export async function deleteAddon(id: string) {
         throw error;
     }
 }
-

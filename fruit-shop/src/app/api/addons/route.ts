@@ -7,7 +7,7 @@ import { verifyAuth } from "@/lib/auth";
 export async function GET() {
     try {
         await connectDB();
-        const addons = await Addon.find().sort({ price: 1 });
+        const addons = await Addon.find().populate("allowed_categories").sort({ price: 1 });
         return NextResponse.json({ success: true, data: addons });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     try {
         await connectDB();
         const body = await request.json();
-        const { name, price, description, active } = body;
+        const { name, price, description, active, allowed_categories } = body;
 
         if (!name) {
             return NextResponse.json({ success: false, message: "Tên dịch vụ không được để trống" }, { status: 400 });
@@ -48,10 +48,13 @@ export async function POST(request: Request) {
             name: name.trim(),
             price: Number(price),
             description,
-            active: active !== undefined ? active : true
+            active: active !== undefined ? active : true,
+            allowed_categories: Array.isArray(allowed_categories) ? allowed_categories : []
         });
 
-        return NextResponse.json({ success: true, data: newAddon }, { status: 201 });
+        const populatedAddon = await Addon.findById(newAddon._id).populate("allowed_categories");
+
+        return NextResponse.json({ success: true, data: populatedAddon }, { status: 201 });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }

@@ -14,7 +14,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         await connectDB();
         const { id } = await params;
         const body = await request.json();
-        const { name, price, description, active } = body;
+        const { name, price, description, active, allowed_categories } = body;
 
         const existingAddon = await Addon.findById(id);
         if (!existingAddon) {
@@ -47,10 +47,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                 name: name.trim(),
                 price: Number(price),
                 description,
-                active: active !== undefined ? active : true
+                active: active !== undefined ? active : true,
+                allowed_categories: Array.isArray(allowed_categories) ? allowed_categories : []
             },
             { new: true }
-        );
+        ).populate("allowed_categories");
 
         return NextResponse.json({ success: true, data: updatedAddon });
     } catch (error: any) {
