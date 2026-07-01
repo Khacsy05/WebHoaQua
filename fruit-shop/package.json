@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "worker": "tsx --env-file=.env.local src/worker.ts"
+    "worker": "npx tsx --env-file=.env.local src/worker.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
