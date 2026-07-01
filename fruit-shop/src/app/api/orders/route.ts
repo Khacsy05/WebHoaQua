@@ -63,6 +63,7 @@ export async function POST(request: Request) {
             });
         }
 
+        const customer = await Customer.findById(customer_id);
         const mockOrderId = new mongoose.Types.ObjectId();
         const orderEvent = {
             event: "OrderPlaced",
@@ -71,6 +72,9 @@ export async function POST(request: Request) {
                 customer_id,
                 items, // [{ product_id, quantity, addons }]
                 promotion_id,
+                customerEmail: customer?.email || "khacsy0@e.tlu.edu.vn",
+                customerName: customer?.name || "Khách hàng",
+                shippingAddress: address || customer?.address || "Tại cửa hàng",
                 createdAt: new Date()
             }
         };
