@@ -29,13 +29,18 @@ export async function GET() {
         // 1. Tạo dữ liệu mẫu cho USER ACCOUNTS (Mật khẩu thô, Middleware tự băm bcrypt)
         const users = await UserAccount.create([
             { username: "admin_fruit", password: "adminpassword", email: "admin@fruit.com", full_name: "Quản Trị Viên", role: "ROLE_ADMIN" },
-            { username: "khacsy_customer", password: "customerpassword", email: "khacsy.customer@gmail.com", full_name: "Khắc Sỹ Khách Hàng", role: "ROLE_CUSTOMER" }
+            { username: "khacsy_customer", password: "customerpassword", email: "khacsy0@gmail.com", full_name: "Khắc Sỹ ", role: "ROLE_CUSTOMER" }
         ]);
 
         // 2. Tạo dữ liệu mẫu cho CUSTOMERS
         const customers = await Customer.create([
-            { name: "Nguyễn Văn A", email: "nguyenvana@gmail.com", phone: "0987654321", address: "175 Tây Sơn, Đống Đa, Hà Nội" },
-            { name: "Trần Thị B", email: "tranthib@gmail.com", phone: "0123456789", address: "Chùa Bộc, Đống Đa, Hà Nội" }
+            { 
+                name: "Nguyễn Khắc Sỹ", 
+                email: "khacsy0@gmail.com", 
+                phone: "0987654321", 
+                address: "175 Tây Sơn, Đống Đa, Hà Nội",
+                user_id: users[1]._id
+            },
         ]);
 
         // 3. Tạo dữ liệu mẫu cho CATEGORIES
@@ -91,19 +96,10 @@ export async function GET() {
         ]);
 
         // 6. Tạo dữ liệu mẫu cho SHOP ORDERS (Đơn hàng)
-        const order1 = await ShopOrder.create({
-            customer_id: customers[0]._id,
-            status: "NEW",
-            total_amount: 600000,       // 1 Táo Envy (150k) + 1 Nho Mẫu Đơn (450k)
-            discount_amount: 60000,     // Giảm 10% từ mã Chào Hè
-            payable_amount: 540000
-        });
+
 
         // 7. Tạo dữ liệu mẫu cho ORDER ITEMS (Chi tiết đơn hàng)
-        await OrderItem.create([
-            { order_id: order1._id, product_id: products[0]._id, quantity: 1, unit_price: 150000, addons: "Gọt vỏ & Cắt sẵn" },
-            { order_id: order1._id, product_id: products[1]._id, quantity: 1, unit_price: 450000, addons: "Bọc thiệp & Hộp quà" }
-        ]);
+
 
         // 8. Tạo dữ liệu mẫu cho ADDONS (Dịch vụ chọn thêm)
         await Addon.create([

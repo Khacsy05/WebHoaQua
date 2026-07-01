@@ -12,7 +12,7 @@ interface Order {
         email: string;
         phone: string;
     };
-    status: "NEW" | "PENDING" | "SHIPPING" | "DELIVERED" | "CANCELLED";
+    status: "PENDING" | "SHIPPING" | "DELIVERED" | "CANCELLED";
     payable_amount: number;
     createdAt: string;
 }

@@ -43,7 +43,7 @@ export async function PUT(
         const body = await request.json();
         const { status } = body;
 
-        const validStatuses = ["NEW", "PENDING", "SHIPPING", "DELIVERED", "CANCELLED"];
+        const validStatuses = ["PENDING", "SHIPPING", "DELIVERED", "CANCELLED"];
 
         if (!status || !validStatuses.includes(status)) {
             return NextResponse.json(
@@ -78,11 +78,39 @@ export async function PUT(
                 );
             }
             // Chỉ được hủy khi đơn chưa giao
-            if (order.status !== "NEW" && order.status !== "PENDING") {
+            if (order.status !== "PENDING") {
                 return NextResponse.json(
                     { success: false, message: "Đơn hàng đã giao hoặc đang vận chuyển, không thể hủy đơn!" },
                     { status: 400 }
                 );
+            }
+        }
+
+        const currentStatus = order.status;
+        if (status !== currentStatus) {
+            if (currentStatus === "DELIVERED" || currentStatus === "CANCELLED") {
+                return NextResponse.json(
+                    { success: false, message: `Đơn hàng đã ở trạng thái cuối (${currentStatus === "DELIVERED" ? "Đã giao" : "Đã hủy"}), không thể thay đổi trạng thái nữa!` },
+                    { status: 400 }
+                );
+            }
+
+            if (currentStatus === "PENDING") {
+                if (status !== "SHIPPING" && status !== "CANCELLED") {
+                    return NextResponse.json(
+                        { success: false, message: "Đơn hàng Chờ duyệt chỉ có thể chuyển sang Đang giao (SHIPPING) hoặc Đã hủy (CANCELLED)!" },
+                        { status: 400 }
+                    );
+                }
+            }
+
+            if (currentStatus === "SHIPPING") {
+                if (status !== "DELIVERED" && status !== "CANCELLED") {
+                    return NextResponse.json(
+                        { success: false, message: "Đơn hàng Đang giao chỉ có thể chuyển sang Đã giao (DELIVERED) hoặc Đã hủy (CANCELLED)!" },
+                        { status: 400 }
+                    );
+                }
             }
         }
 

@@ -18,13 +18,7 @@ export default function ShopPage() {
     const [mounted, setMounted] = useState(false);
     const [authChecked, setAuthChecked] = useState(false);
 
-    console.log("ShopPage Render:", {
-        mounted,
-        authChecked,
-        hasHydrated,
-        user: user ? { name: user.name, customerName: user.customer?.name } : null,
-        hasToken: typeof window !== 'undefined' ? !!localStorage.getItem("fruit_shop_token") : false
-    });
+
 
     // State điều khiển Giỏ hàng
     const [cartData, setCartData] = useState<CartData>({ items: [], total: 0, discount: 0, payable: 0, totalItems: 0 });
@@ -126,21 +120,23 @@ export default function ShopPage() {
                     <nav className="flex items-center gap-6">
                         <Link href="/shop" className="text-gray-600 hover:text-green-600 font-medium transition">Trang chủ</Link>
 
-                        <button
-                            className="relative text-gray-700 hover:text-green-600 p-1 transition focus:outline-none"
-                            onClick={() => setIsCartOpen(true)}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="9" cy="21" r="1"></circle>
-                                <circle cx="20" cy="21" r="1"></circle>
-                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                            </svg>
-                            {cartData.totalItems > 0 && (
-                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                                    {cartData.totalItems}
-                                </span>
-                            )}
-                        </button>
+                        {(!user || (user.role !== 'ROLE_ADMIN' && user.role !== 'ROLE_MANAGER')) && (
+                            <button
+                                className="relative text-gray-700 hover:text-green-600 p-1 transition focus:outline-none"
+                                onClick={() => setIsCartOpen(true)}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="9" cy="21" r="1"></circle>
+                                    <circle cx="20" cy="21" r="1"></circle>
+                                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                </svg>
+                                {cartData.totalItems > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                        {cartData.totalItems}
+                                    </span>
+                                )}
+                            </button>
+                        )}
 
                         {!mounted || !hasHydrated || (!authChecked && !user) ? (
                             <div className="w-24 h-9 bg-gray-100 rounded-lg animate-pulse"></div>
@@ -163,25 +159,30 @@ export default function ShopPage() {
                                         {(user.role === 'ROLE_ADMIN' || user.role === 'ROLE_MANAGER') && (
                                             <li><Link className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" href="/admin/dashboard">Kênh quản lý</Link></li>
                                         )}
-                                        <li>
-                                            <button
-                                                onClick={() => { openProfileModal(); setIsDropdownOpen(false); }}
-                                                className="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
-                                            >
-                                                Thông tin tài khoản
-                                            </button>
-                                        </li>
-                                         {user.role !== 'ROLE_ADMIN' && user.role !== 'ROLE_MANAGER' && (
-                                             <li>
-                                                 <Link
-                                                     href="/shop/orders"
-                                                     onClick={() => setIsDropdownOpen(false)}
-                                                     className="w-full block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
-                                                 >
-                                                     Đơn hàng của tôi
-                                                 </Link>
-                                             </li>
-                                         )}
+
+
+                                        {user.role !== 'ROLE_ADMIN' && user.role !== 'ROLE_MANAGER' && (
+                                            <li>
+                                                <button
+                                                    onClick={() => { openProfileModal(); setIsDropdownOpen(false); }}
+                                                    className="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                                                >
+                                                    Thông tin tài khoản
+                                                </button>
+                                            </li>
+                                        )}
+
+                                        {user.role !== 'ROLE_ADMIN' && user.role !== 'ROLE_MANAGER' && (
+                                            <li>
+                                                <Link
+                                                    href="/shop/orders"
+                                                    onClick={() => setIsDropdownOpen(false)}
+                                                    className="w-full block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                                                >
+                                                    Đơn hàng của tôi
+                                                </Link>
+                                            </li>
+                                        )}
                                         <li>
                                             <button
                                                 onClick={() => {

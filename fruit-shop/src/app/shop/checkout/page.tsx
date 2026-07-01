@@ -33,6 +33,11 @@ export default function CheckoutPage() {
                     window.location.href = '/login';
                     return;
                 }
+                if (userData.role === 'ROLE_ADMIN' || userData.role === 'ROLE_MANAGER') {
+                    alert('Tài khoản quản lý không hỗ trợ chức năng mua hàng!');
+                    window.location.href = '/admin/dashboard';
+                    return;
+                }
 
                 // Load cart items for this logged-in user
                 const cart = getCart(userData.name);
@@ -87,7 +92,9 @@ export default function CheckoutPage() {
         const orderItems = cartData.items.map(item => ({
             product_id: String(item._id || item.id),
             quantity: item.quantity,
-            addons: item.addons?.join(', ') || null
+            addons: item.addons && item.addons.length > 0 
+                ? item.addons.map((a: any) => a.name).join(', ') 
+                : null
         }));
 
         // Call order API
