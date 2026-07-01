@@ -86,7 +86,7 @@ export interface CustomerType {
 export interface Order {
     _id?: string;
     customer_id: CustomerType | string;
-    status: "NEW" | "PENDING" | "SHIPPING" | "DELIVERED" | "CANCELLED";
+    status: "PENDING" | "SHIPPING" | "DELIVERED" | "CANCELLED";
     total_amount: number;
     discount_amount: number;
     payable_amount: number;

@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import ShopOrder from "@/models/ShopOrder";
 import Product from "@/models/Product";
 import Customer from "@/models/Customer";
+import DashboardStat from "@/models/DashboardStat";
 
 export async function GET(request: Request) {
     const auth = verifyAuth(request, ["ROLE_ADMIN", "ROLE_MANAGER"]);
@@ -14,23 +15,17 @@ export async function GET(request: Request) {
     try {
         await connectDB();
 
-        // 1. Đếm sản phẩm
+        // 1. Đếm sản phẩm & Khách hàng (Giữ nguyên hoặc tối ưu sau)
         const totalProducts = await Product.countDocuments();
-
-        // 2. Đếm khách hàng
         const totalCustomers = await Customer.countDocuments();
 
-        // 3. Đếm đơn hàng
-        const totalOrders = await ShopOrder.countDocuments();
+        // 🔥 TỐI ƯU BẰNG KAFKA: Đọc thẳng từ bảng thống kê tính sẵn
+        const stats = await DashboardStat.findOne({ stat_id: "global_stat" });
 
-        // 4. Tính tổng doanh thu (payable_amount của các đơn hàng không bị hủy)
-        const salesResult = await ShopOrder.aggregate([
-            { $match: { status: { $ne: "CANCELLED" } } },
-            { $group: { _id: null, totalSales: { $sum: "$payable_amount" } } }
-        ]);
-        const totalSales = salesResult[0]?.totalSales || 0;
+        const totalOrders = stats?.totalOrders || 0;
+        const totalSales = stats?.totalSales || 0;
 
-        // 5. Lấy danh sách 5 đơn hàng gần đây nhất
+        // 5. Lấy danh sách 5 đơn hàng gần đây nhất (Giữ nguyên vì có limit 5 rất nhẹ)
         const recentOrders = await ShopOrder.find()
             .sort({ createdAt: -1 })
             .limit(5)
@@ -41,8 +36,8 @@ export async function GET(request: Request) {
             data: {
                 totalProducts,
                 totalCustomers,
-                totalOrders,
-                totalSales,
+                totalOrders, // Trả về con số có sẵn vèo phát xong
+                totalSales,  // Trả về con số có sẵn vèo phát xong
                 recentOrders
             }
         });

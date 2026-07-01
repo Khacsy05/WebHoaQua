@@ -5,10 +5,11 @@ import ShopOrder from "./models/ShopOrder";
 import OrderItem from "./models/OrderItem";
 import Product from "./models/Product";
 import Promotion from "./models/Promotion";
-
-
+import DashboardStat from "./models/DashboardStat";
+import Addon from "./models/Addon";
+import { Resend } from "resend";
 const consumer = kafka.consumer({ groupId: "fruit-shop-worker-group" });
-
+const resend = new Resend(process.env.RESEND_API_KEY);
 async function startWorker() {
     // 1. Kết nối Database và Kafka
     await connectDB();
@@ -16,8 +17,11 @@ async function startWorker() {
     console.log("🤖 Worker chạy ngầm đã khởi động và đang đợi đơn hàng từ Kafka...");
 
     // 2. Đăng ký lắng nghe topic đơn hàng
-    await consumer.subscribe({ topic: "fruit-orders-topic", fromBeginning: true });
-
+    await consumer.subscribe({
+        topics: ["fruit-orders-topic", "fruit-emails-topic"],
+        fromBeginning: false
+    });
+    console.log("🤖 Worker đã khởi động, đang canh gác Đơn Hàng và Email...");
     // 3. Vòng lặp liên tục lắng nghe tin nhắn mới
     await consumer.run({
         eachMessage: async ({ message }) => {
@@ -45,20 +49,35 @@ async function startWorker() {
                             return; // Trong thực tế chỗ này sẽ bắn sang một topic lỗi để xử lý riêng
                         }
 
-                        const itemTotal = product.price * item.quantity;
+                        // Tính thêm tiền của các dịch vụ đi kèm nếu có
+                        let addonsTotal = 0;
+                        if (item.addons) {
+                            const addonNames = item.addons.split(',').map((name: string) => name.trim());
+                            for (const addonName of addonNames) {
+                                const addonObj = await Addon.findOne({
+                                    name: { $regex: new RegExp(`^${addonName}$`, "i") }
+                                });
+                                if (addonObj) {
+                                    addonsTotal += addonObj.price;
+                                }
+                            }
+                        }
+
+                        const finalUnitPrice = product.price + addonsTotal;
+                        const itemTotal = finalUnitPrice * item.quantity;
                         total_amount += itemTotal;
 
                         orderItemsData.push({
                             product_id: product._id,
                             quantity: item.quantity,
-                            unit_price: product.price,
+                            unit_price: finalUnitPrice,
                             addons: item.addons || null
                         });
 
                         // Trừ bớt số lượng tồn kho của sản phẩm
                         product.stock -= item.quantity;
                         await product.save();
-                        console.log(`   🔸 Đã cập nhật trừ kho cho sản phẩm: ${product.name}`);
+                        console.log(`   🔸 Đã cập nhật trừ kho cho sản phẩm: ${product.name} (Đơn giá gồm dịch vụ: ${finalUnitPrice}đ)`);
                     }
 
                     // Tính mã giảm giá
@@ -81,7 +100,7 @@ async function startWorker() {
                     const newOrder = await ShopOrder.create({
                         _id: orderId, // Ghi đè bằng ID đồng bộ từ Next.js gửi qua
                         customer_id,
-                        status: "NEW",
+                        status: "PENDING",
                         total_amount,
                         discount_amount,
                         payable_amount
@@ -95,6 +114,21 @@ async function startWorker() {
 
                     console.log(`✅ [Database] Đơn hàng #${orderId} đã được lưu vào MongoDB thành công!`);
                     // ----------------------------------------
+
+
+                    const amount = payable_amount || 0;
+                    await DashboardStat.updateOne(
+                        { stat_id: "global_stat" },
+                        {
+                            $inc: {
+                                totalOrders: 1,
+                                totalSales: amount,
+                            },
+                        },
+                        { upsert: true }
+                    );
+
+                    console.log(`📊 [Analytics] Đã cộng dồn +1 đơn và +${amount}đ vào Dashboard!`);
 
                 } catch (dbError) {
                     console.error("❌ Lỗi khi lưu đơn hàng vào DB:", dbError);

@@ -120,12 +120,6 @@ export default function AdminOrdersPage() {
     // Helper dịch Trạng thái đơn hàng & gán class màu sắc tương ứng
     const getStatusBadge = (status: Order['status']) => {
         switch (status) {
-            case 'NEW':
-                return (
-                    <span className="inline-block px-2.5 py-1 text-xs font-bold rounded-full border bg-blue-50 text-blue-600 border-blue-100">
-                        Đơn mới
-                    </span>
-                );
             case 'PENDING':
                 return (
                     <span className="inline-block px-2.5 py-1 text-xs font-bold rounded-full border bg-yellow-50 text-yellow-600 border-yellow-100">
@@ -194,7 +188,6 @@ export default function AdminOrdersPage() {
                 <div className="flex flex-wrap gap-1.5 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
                     {[
                         { code: 'ALL', name: 'Tất cả' },
-                        { code: 'NEW', name: 'Đơn mới' },
                         { code: 'PENDING', name: 'Chờ duyệt' },
                         { code: 'SHIPPING', name: 'Đang giao' },
                         { code: 'DELIVERED', name: 'Đã giao' },
@@ -388,31 +381,67 @@ export default function AdminOrdersPage() {
                                     </div>
                                 </div>
 
-                                {/* Section 2: Update Status */}
-                                <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">⚙️ Cập nhật trạng thái</h4>
-                                        <div>{getStatusBadge(selectedOrder.status)}</div>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <label className="block text-xs font-bold text-gray-500">Chọn trạng thái mới:</label>
-                                        <select
-                                            value={selectedOrder.status}
-                                            onChange={(e) => handleUpdateStatus(e.target.value)}
-                                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition text-sm text-gray-900 bg-white font-bold"
-                                        >
-                                            <option value="NEW">🆕 Đơn mới (Mới đặt)</option>
-                                            <option value="PENDING">⏳ Chờ duyệt (Đang xử lý)</option>
-                                            <option value="SHIPPING">🚚 Đang giao (Cho shipper đi)</option>
-                                            <option value="DELIVERED">✅ Đã giao (Thành công)</option>
-                                            <option value="CANCELLED">❌ Đã hủy (Hủy đơn)</option>
-                                        </select>
-                                        <p className="text-[10px] text-gray-400 font-medium italic">
-                                            * Hệ thống sẽ tự động cập nhật ngay khi bạn chọn một trạng thái mới ở hộp dropdown này.
-                                        </p>
-                                    </div>
-                                </div>
+                                 {/* Section 2: Update Status */}
+                                 <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
+                                     <div className="flex items-center justify-between">
+                                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">⚙️ Cập nhật trạng thái</h4>
+                                         <div>{getStatusBadge(selectedOrder.status)}</div>
+                                     </div>
+ 
+                                     <div className="space-y-3">
+                                         {selectedOrder.status === 'PENDING' && (
+                                             <>
+                                                 <label className="block text-xs font-bold text-gray-500">Thao tác xử lý đơn hàng:</label>
+                                                 <div className="grid grid-cols-2 gap-3">
+                                                     <button
+                                                         onClick={() => handleUpdateStatus('CANCELLED')}
+                                                         className="px-3 py-2.5 rounded-xl text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 transition active:scale-[0.98]"
+                                                     >
+                                                         ❌ Hủy đơn hàng
+                                                     </button>
+                                                     <button
+                                                         onClick={() => handleUpdateStatus('SHIPPING')}
+                                                         className="px-3 py-2.5 rounded-xl text-xs font-bold bg-green-600 text-white hover:bg-green-700 transition active:scale-[0.98] shadow-md shadow-green-600/10"
+                                                     >
+                                                         🚀 Xác nhận & Giao
+                                                     </button>
+                                                 </div>
+                                             </>
+                                         )}
+ 
+                                         {selectedOrder.status === 'SHIPPING' && (
+                                             <>
+                                                 <label className="block text-xs font-bold text-gray-500">Thao tác xử lý đơn hàng:</label>
+                                                 <div className="grid grid-cols-2 gap-3">
+                                                     <button
+                                                         onClick={() => handleUpdateStatus('CANCELLED')}
+                                                         className="px-3 py-2.5 rounded-xl text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 transition active:scale-[0.98]"
+                                                     >
+                                                         ❌ Hủy đơn hàng
+                                                     </button>
+                                                     <button
+                                                         onClick={() => handleUpdateStatus('DELIVERED')}
+                                                         className="px-3 py-2.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition active:scale-[0.98] shadow-md shadow-blue-600/10"
+                                                     >
+                                                         ✅ Đã giao hàng
+                                                     </button>
+                                                 </div>
+                                             </>
+                                         )}
+ 
+                                         {selectedOrder.status === 'DELIVERED' && (
+                                             <div className="bg-green-50 text-green-800 p-3.5 rounded-xl border border-green-100 text-xs font-bold text-center leading-relaxed font-sans">
+                                                 ✅ Đơn hàng này đã hoàn thành.
+                                             </div>
+                                         )}
+ 
+                                         {selectedOrder.status === 'CANCELLED' && (
+                                             <div className="bg-red-50 text-red-800 p-3.5 rounded-xl border border-red-100 text-xs font-bold text-center leading-relaxed font-sans">
+                                                 ❌ Đơn hàng này đã bị hủy bỏ.
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
                             </div>
 
                             {/* COLUMN RIGHT: Product Details List */}

@@ -101,12 +101,6 @@ export default function CustomerOrdersPage() {
     // Helper hiển thị badge trạng thái đơn hàng
     const getStatusBadge = (status: Order['status']) => {
         switch (status) {
-            case 'NEW':
-                return (
-                    <span className="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-600 border border-blue-100 font-sans">
-                        Đơn mới đặt
-                    </span>
-                );
             case 'PENDING':
                 return (
                     <span className="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-yellow-50 text-yellow-600 border border-yellow-100 font-sans">
@@ -185,7 +179,6 @@ export default function CustomerOrdersPage() {
                 <div className="flex flex-wrap gap-1.5 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm justify-center md:justify-start">
                     {[
                         { code: 'ALL', name: 'Tất cả' },
-                        { code: 'NEW', name: 'Đơn mới' },
                         { code: 'PENDING', name: 'Chờ duyệt' },
                         { code: 'SHIPPING', name: 'Đang giao' },
                         { code: 'DELIVERED', name: 'Đã giao' },
@@ -230,7 +223,7 @@ export default function CustomerOrdersPage() {
                                             const orderCode = orderId.substring(orderId.length - 8).toUpperCase();
                                             const isExpanded = !!expandedOrderIds[orderId];
                                             const items = order.items || [];
-                                            const canCancel = order.status === 'NEW' || order.status === 'PENDING';
+                                            const canCancel = order.status === 'PENDING';
                                             const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
 
                                             return (

@@ -238,46 +238,52 @@ export default function ProductDetailPage() {
                         )}
 
                         {/* Quantity Selector & Checkout Buttons */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-bold text-gray-700">Số lượng mua:</span>
-                                <div className="flex items-center border rounded-xl bg-gray-50 p-1">
+                        {user?.role === 'ROLE_ADMIN' || user?.role === 'ROLE_MANAGER' ? (
+                            <div className="bg-amber-50 text-amber-800 p-4 rounded-2xl border border-amber-100/70 text-xs font-bold text-center leading-relaxed animate-fadeIn">
+                                🔒 Tài khoản quản lý / quản trị viên chỉ có quyền xem thông tin chi tiết sản phẩm, không hỗ trợ chức năng mua hàng tại đây.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-bold text-gray-700">Số lượng mua:</span>
+                                    <div className="flex items-center border rounded-xl bg-gray-50 p-1">
+                                        <button
+                                            onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
+                                            className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition"
+                                        >
+                                            -
+                                        </button>
+                                        <span className="px-4 text-sm font-extrabold text-gray-800">{quantity}</span>
+                                        <button
+                                            onClick={() => setQuantity(prev => Math.min(product.stock, prev + 1))}
+                                            disabled={quantity >= product.stock}
+                                            className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition disabled:opacity-50"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-right text-gray-400">
+                                    Kho còn lại: <strong className="text-gray-600">{product.stock}</strong> sản phẩm
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
                                     <button
-                                        onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
-                                        className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition"
+                                        onClick={handleAddToCart}
+                                        className="py-3.5 border border-green-600 text-green-600 font-bold rounded-xl hover:bg-green-50 transition active:scale-[0.99] uppercase text-xs tracking-wider"
                                     >
-                                        -
+                                        Thêm vào giỏ
                                     </button>
-                                    <span className="px-4 text-sm font-extrabold text-gray-800">{quantity}</span>
                                     <button
-                                        onClick={() => setQuantity(prev => Math.min(product.stock, prev + 1))}
-                                        disabled={quantity >= product.stock}
-                                        className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition disabled:opacity-50"
+                                        onClick={handleBuyNow}
+                                        className="py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition active:scale-[0.99] uppercase text-xs tracking-wider shadow-md shadow-green-600/10"
                                     >
-                                        +
+                                        Mua ngay
                                     </button>
                                 </div>
                             </div>
-
-                            <div className="text-xs text-right text-gray-400">
-                                Kho còn lại: <strong className="text-gray-600">{product.stock}</strong> sản phẩm
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <button
-                                    onClick={handleAddToCart}
-                                    className="py-3.5 border border-green-600 text-green-600 font-bold rounded-xl hover:bg-green-50 transition active:scale-[0.99] uppercase text-xs tracking-wider"
-                                >
-                                    Thêm vào giỏ
-                                </button>
-                                <button
-                                    onClick={handleBuyNow}
-                                    className="py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition active:scale-[0.99] uppercase text-xs tracking-wider shadow-md shadow-green-600/10"
-                                >
-                                    Mua ngay
-                                </button>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

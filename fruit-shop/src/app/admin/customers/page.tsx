@@ -103,7 +103,7 @@ export default function AdminCustomersPage() {
                     <h3 className="text-xl font-bold text-gray-900 mb-1">Quản lý Khách hàng</h3>
                     <p className="text-sm text-gray-500 font-medium">Theo dõi danh sách khách hàng, thống kê số đơn đặt hàng và tổng chi tiêu tích lũy.</p>
                 </div>
-                
+
                 {/* Search input */}
                 <div className="relative w-full md:w-72">
                     <input
@@ -219,7 +219,7 @@ export default function AdminCustomersPage() {
                                     className={`w-8 h-8 rounded-lg text-xs font-bold transition focus:outline-none ${currentPage === i + 1
                                         ? 'bg-green-600 text-white shadow-sm'
                                         : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                    }`}
+                                        }`}
                                 >
                                     {i + 1}
                                 </button>
