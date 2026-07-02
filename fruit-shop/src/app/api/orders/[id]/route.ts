@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import ShopOrder from "@/models/ShopOrder";
 import OrderItem from "@/models/OrderItem";
 import { verifyAuth } from "@/lib/auth";
+import { getKafkaProducer } from "@/lib/kafka";
 
 // [GET] /api/orders/[id] - Xem chi tiết đơn hàng (kèm sản phẩm)
 export async function GET(
@@ -52,7 +53,7 @@ export async function PUT(
             );
         }
 
-        const order = await ShopOrder.findById(id);
+        const order = await ShopOrder.findById(id).populate("customer_id");
         if (!order) {
             return NextResponse.json(
                 { success: false, message: "Không tìm thấy đơn hàng này trên hệ thống!" },
@@ -64,7 +65,7 @@ export async function PUT(
 
         if (!isUserAdmin) {
             // Khách hàng tự thao tác đơn hàng của mình
-            if (String(order.customer_id) !== String(decoded.customerId)) {
+            if (String(order.customer_id?._id) !== String(decoded.customerId)) {
                 return NextResponse.json(
                     { success: false, message: "Bạn không có quyền thay đổi trạng thái của đơn hàng này!" },
                     { status: 403 }
@@ -116,6 +117,47 @@ export async function PUT(
 
         order.status = status;
         await order.save();
+
+        // Gửi email thông báo trạng thái qua Kafka
+        if (status === "SHIPPING" || status === "CANCELLED" || status === "DELIVERED") {
+            try {
+                const customer = order.customer_id as any;
+                let emailType = "";
+                let subject = "";
+
+                if (status === "SHIPPING") {
+                    emailType = "ORDER_SHIPPING";
+                    subject = `🚚 Đơn hàng #${order._id} của bạn đang được giao!`;
+                } else if (status === "CANCELLED") {
+                    emailType = "ORDER_CANCELLED";
+                    subject = `🚫 Thông báo hủy đơn hàng #${order._id}`;
+                } else if (status === "DELIVERED") {
+                    emailType = "ORDER_DELIVERED";
+                    subject = `✅ Đơn hàng #${order._id} đã được giao thành công!`;
+                }
+
+                const emailPayload = {
+                    emailType,
+                    to: customer?.email || "khacsy0@e.tlu.edu.vn",
+                    subject,
+                    orderInfo: {
+                        orderId: order._id.toString(),
+                        customerName: customer?.name || "Khách hàng",
+                        payable_amount: order.payable_amount,
+                        shippingAddress: customer?.address || "Tại cửa hàng"
+                    }
+                };
+
+                const producer = await getKafkaProducer();
+                await producer.send({
+                    topic: "fruit-emails-topic",
+                    messages: [{ value: JSON.stringify(emailPayload) }]
+                });
+                console.log(`🚀 [Kafka] Đã đẩy yêu cầu gửi email ${status} sang fruit-emails-topic`);
+            } catch (kafkaErr) {
+                console.error("❌ Lỗi khi gửi sự kiện email lên Kafka:", kafkaErr);
+            }
+        }
 
         return NextResponse.json({
             success: true,

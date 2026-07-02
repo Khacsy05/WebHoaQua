@@ -17,6 +17,18 @@ export default function ShopPage() {
     const { user, loadUser, logout, setUser, hasHydrated } = useAuthStore();
     const [mounted, setMounted] = useState(false);
     const [authChecked, setAuthChecked] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 6;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCategoryId]);
+
+    const totalPages = Math.ceil(products.length / itemsPerPage);
+    const paginatedProducts = products.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
 
 
@@ -252,7 +264,7 @@ export default function ShopPage() {
             {/* PRODUCTS */}
             <section className="container mx-auto px-4 mt-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                    {products.map(product => {
+                    {paginatedProducts.map(product => {
                         const prodId = product._id || product.id;
                         const imgPath = getProductImage(product.image);
                         return (
@@ -279,6 +291,43 @@ export default function ShopPage() {
                         );
                     })}
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-2 mt-12 pb-8">
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer font-sans"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        {[...Array(totalPages)].map((_, i) => (
+                            <button
+                                key={i}
+                                onClick={() => setCurrentPage(i + 1)}
+                                className={`w-10 h-10 rounded-xl text-sm font-bold transition font-sans ${
+                                    currentPage === i + 1
+                                        ? 'bg-green-600 text-white shadow-md shadow-green-600/10'
+                                        : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                {i + 1}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer font-sans"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
             </section>
 
             <CartDrawer isOpen={isCartOpen} cartData={cartData} user={user} onClose={() => setIsCartOpen(false)} onCartUpdated={loadCartItems} />

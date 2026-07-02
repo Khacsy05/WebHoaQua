@@ -81,3 +81,18 @@ export async function updateCurrentUser(payload: { name: string; phone: string; 
     }
 }
 
+export async function sendOtpCode(email: string) {
+    try {
+        const response = await fetch("/api/auth/sendOtp", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email })
+        });
+        return await response.json();
+    } catch (error: any) {
+        console.error("Lỗi khi gửi OTP:", error);
+        return { success: false, message: error.message || "Lỗi mạng" };
+    }
+}

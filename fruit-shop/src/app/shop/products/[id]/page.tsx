@@ -246,18 +246,37 @@ export default function ProductDetailPage() {
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-bold text-gray-700">Số lượng mua:</span>
-                                    <div className="flex items-center border rounded-xl bg-gray-50 p-1">
+                                    <div className="flex items-center border border-gray-200 rounded-xl bg-gray-50 p-1">
                                         <button
                                             onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
-                                            className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition"
+                                            className="w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-800 hover:text-green-600 hover:bg-white rounded-lg transition cursor-pointer select-none"
                                         >
                                             -
                                         </button>
-                                        <span className="px-4 text-sm font-extrabold text-gray-800">{quantity}</span>
+                                        <input
+                                            type="number"
+                                            value={quantity === 0 ? '' : quantity}
+                                            min={1}
+                                            max={product.stock}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value, 10);
+                                                if (isNaN(val)) {
+                                                    setQuantity(0);
+                                                } else {
+                                                    setQuantity(Math.min(product.stock, Math.max(1, val)));
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                if (quantity < 1) {
+                                                    setQuantity(1);
+                                                }
+                                            }}
+                                            className="w-12 text-center text-sm font-extrabold text-gray-900 bg-transparent outline-none focus:outline-none border-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
                                         <button
                                             onClick={() => setQuantity(prev => Math.min(product.stock, prev + 1))}
                                             disabled={quantity >= product.stock}
-                                            className="w-8 h-8 flex items-center justify-center text-lg font-semibold hover:bg-white rounded-lg transition disabled:opacity-50"
+                                            className="w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-800 hover:text-green-600 hover:bg-white rounded-lg transition disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer select-none"
                                         >
                                             +
                                         </button>
