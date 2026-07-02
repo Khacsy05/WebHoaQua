@@ -18,6 +18,9 @@ export default function CheckoutPage() {
     const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
+    const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+    const [memoCode, setMemoCode] = useState<string>('');
 
     // Form states
     const [address, setAddress] = useState<string>('');
@@ -87,35 +90,76 @@ export default function CheckoutPage() {
             return;
         }
 
+        if (paymentMethod === 'BANK') {
+            const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+            setMemoCode(randomCode);
+            setIsQrModalOpen(true);
+            return;
+        }
+
         setIsSubmitting(true);
 
         const orderItems = cartData.items.map(item => ({
             product_id: String(item._id || item.id),
             quantity: item.quantity,
-            addons: item.addons && item.addons.length > 0 
-                ? item.addons.map((a: any) => a.name).join(', ') 
+            addons: item.addons && item.addons.length > 0
+                ? item.addons.map((a: any) => a.name).join(', ')
                 : null
         }));
 
-        // Call order API
+        // Call order API (for COD)
         const result = await createOrder({
             customer_id: user.customerId,
             items: orderItems,
             promotion_id: isEligibleForPromotion ? selectedPromotion?._id : null,
-            // Also send updated details
             address,
             phone,
             payment_method: paymentMethod
         });
 
         if (result.success) {
-            alert('Đặt hàng thành công! Cảm ơn bạn đã mua hàng.');
             clearCart(user.name);
-            router.push('/shop');
+            router.push(`/shop/thankyou?orderId=${(result as any).order_id}`);
         } else {
             alert(result.message || result.error || 'Có lỗi xảy ra khi tạo đơn hàng.');
             setIsSubmitting(false);
         }
+    };
+
+    const handleConfirmBankPayment = async () => {
+        if (!user || !user.customerId) return;
+        setIsSubmitting(true);
+
+        const orderItems = cartData.items.map(item => ({
+            product_id: String(item._id || item.id),
+            quantity: item.quantity,
+            addons: item.addons && item.addons.length > 0
+                ? item.addons.map((a: any) => a.name).join(', ')
+                : null
+        }));
+
+        const result = await createOrder({
+            customer_id: user.customerId,
+            items: orderItems,
+            promotion_id: isEligibleForPromotion ? selectedPromotion?._id : null,
+            address,
+            phone,
+            payment_method: 'BANK'
+        });
+
+        if (result.success) {
+            clearCart(user.name);
+            setIsQrModalOpen(false);
+            router.push(`/shop/thankyou?orderId=${(result as any).order_id}`);
+        } else {
+            alert(result.message || result.error || 'Có lỗi xảy ra khi tạo đơn hàng.');
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCancelTransaction = () => {
+        setIsQrModalOpen(false);
+        setMemoCode('');
     };
 
     if (loading) {
@@ -330,6 +374,68 @@ export default function CheckoutPage() {
                     </div>
                 </div>
             </div>
+
+            {/* QR Payment Modal */}
+            {isQrModalOpen && memoCode && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fadeIn">
+                    <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-5 relative border border-gray-100 overflow-hidden text-center">
+                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-green-500"></div>
+
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Thanh toán Chuyển khoản</h3>
+                        <p className="text-[11px] text-gray-400 font-medium mb-3">Quét mã QR qua ứng dụng ngân hàng / QR Pay</p>
+
+                        {/* QR Code Container */}
+                        <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 inline-block mb-3 shadow-inner">
+                            <img
+                                src={`https://img.vietqr.io/image/MB-0987654321-compact2.jpg?amount=${activePayable}&addInfo=FRUIT%20${memoCode}&accountName=NGUYEN%20KHAC%20SY`}
+                                alt="QR Code Chuyển khoản"
+                                className="w-44 h-44 mx-auto object-contain rounded-lg border border-white"
+                            />
+                        </div>
+
+                        {/* Account Details */}
+                        <div className="text-left bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-1.5 mb-4 text-xs">
+                            <div className="flex justify-between">
+                                <span className="text-gray-400 font-medium">Ngân hàng:</span>
+                                <span className="font-bold text-gray-900">MB Bank (Quân Đội)</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400 font-medium">Số tài khoản:</span>
+                                <span className="font-bold text-gray-900">0987654321</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400 font-medium">Chủ tài khoản:</span>
+                                <span className="font-bold text-gray-900">NGUYEN KHAC SY</span>
+                            </div>
+                            <div className="flex justify-between border-t border-gray-200/60 pt-1.5 mt-1">
+                                <span className="text-gray-400 font-medium">Số tiền:</span>
+                                <span className="font-extrabold text-red-600">{formatCurrency(activePayable)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-400 font-medium">Nội dung CK:</span>
+                                <span className="font-bold text-blue-600 font-mono select-all">FRUIT {memoCode}</span>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2">
+                            <button
+                                disabled={isSubmitting}
+                                onClick={handleConfirmBankPayment}
+                                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition shadow-md shadow-green-600/10 active:scale-[0.99] font-sans text-xs disabled:opacity-50"
+                            >
+                                {isSubmitting ? "⌛ Đang xử lý đơn hàng..." : "✅ Xác nhận đã chuyển khoản"}
+                            </button>
+                            <button
+                                onClick={handleCancelTransaction}
+                                className="w-full py-2 bg-white hover:bg-gray-50 text-gray-400 font-semibold rounded-xl border border-gray-200 transition text-xs font-sans"
+                            >
+                                Hủy giao dịch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -8,6 +8,7 @@ import Promotion from "./models/Promotion";
 import DashboardStat from "./models/DashboardStat";
 import Addon from "./models/Addon";
 import Customer from "./models/Customer";
+import UserAccount from "./models/UserAccount";
 import { Resend } from "resend";
 
 const consumer = kafka.consumer({ groupId: "fruit-shop-worker-group" });
@@ -106,6 +107,31 @@ async function startWorker() {
                         product.stock -= item.quantity;
                         await product.save();
                         console.log(`   🔸 Đã cập nhật trừ kho cho sản phẩm: ${product.name} (Đơn giá gồm dịch vụ: ${finalUnitPrice}đ)`);
+
+                        // Cảnh báo tồn kho thấp cho Admin
+                        if (product.stock < 5) {
+                            try {
+                                // Truy vấn động danh sách tài khoản Admin từ DB
+                                const admins = await UserAccount.findOne({ role: "ROLE_ADMIN", active: true });
+                                const adminEmails = admins?.email;
+                                const adminEmailPayload = {
+                                    emailType: "ADMIN_STOCK_ALERT",
+                                    to: adminEmails,
+                                    subject: `⚠️ [CẢNH BÁO TỒN KHO] Sản phẩm ${product.name} sắp hết hàng!`,
+                                    orderInfo: {
+                                        productName: product.name,
+                                        currentStock: product.stock
+                                    }
+                                };
+                                await producer.send({
+                                    topic: "fruit-emails-topic",
+                                    messages: [{ value: JSON.stringify(adminEmailPayload) }]
+                                });
+                                console.log(`⚠️ [Kafka] Đẩy yêu cầu cảnh báo tồn kho cho sản phẩm ${product.name} (còn ${product.stock}) tới Admin: ${adminEmails}`);
+                            } catch (err) {
+                                console.error("❌ Lỗi khi gửi tin nhắn cảnh báo tồn kho lên Kafka:", err);
+                            }
+                        }
                     }
 
                     // Tính mã giảm giá
@@ -183,6 +209,10 @@ async function startWorker() {
                 }
             }
 
+            if (payload.event === "OrderShipped") {
+                console.log(`\n🚚 [Kafka] Đơn hàng đang được giao: #${payload.orderId}`);
+            }
+
             // =================================================================
             // LUỒNG 2: XỬ LÝ GỬI EMAIL THẬT (Từ fruit-emails-topic)
             // =================================================================
@@ -194,7 +224,7 @@ async function startWorker() {
                     if (emailType === "CUSTOMER_INVOICE") {
                         await resend.emails.send({
                             from: "FruitShop <onboarding@resend.dev>", // Tên brand hiển thị test
-                            to: [to],
+                            to: to,
                             subject: subject,
                             html: `
                                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
@@ -211,6 +241,121 @@ async function startWorker() {
                             `
                         });
                         console.log(`✅ [Email Worker] Đã gửi thư thành công tới ${to}!`);
+                    }
+                    if (emailType === "RESET_PASSWORD_OTP") {
+                        await resend.emails.send({
+                            from: "FruitShop <onboarding@resend.dev>",
+                            to: to,
+                            subject: subject,
+                            html: `
+                                <div style="font-family: sans-serif; padding: 25px; border: 1px solid #e0e0e0; max-width: 500px; border-radius: 12px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                                    <h2 style="color: #1e88e5; text-align: center; margin-top: 0;">Khôi phục mật khẩu 🔑</h2>
+                                    <p>Chào bạn,</p>
+                                    <p>Chúng tôi nhận được yêu cầu lấy lại mật khẩu cho tài khoản liên kết với email này. Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình:</p>
+                                    
+                                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #d32f2f;">${orderInfo.otpCode}</span>
+                                    </div>
+                                    
+                                    <p style="font-size: 13px; color: #757575; text-align: center;">⚠️ Mã này có hiệu lực trong vòng <strong>${orderInfo.expireIn}</strong>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.</p>
+                                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                                    <p style="font-size: 11px; color: #999; text-align: center;">Nếu bạn không yêu cầu hành động này, bạn có thể an tâm bỏ qua email này.</p>
+                                </div>
+                            `
+                        });
+                        console.log(`✅ [Email Worker] Đã gửi mã OTP bảo mật tới thành công ${to}!`);
+                    }
+                    if (emailType === "ORDER_SHIPPING") {
+                        await resend.emails.send({
+                            from: "FruitShop <onboarding@resend.dev>",
+                            to: to,
+                            subject: subject,
+                            html: `
+                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                    <h2 style="color: #0288d1; text-align: center;">Đơn hàng của bạn đang được giao! 🚚✨</h2>
+                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                    <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được bàn giao cho đơn vị vận chuyển và đang trên đường tới địa chỉ của bạn.</p>
+                                    <hr style="border: none; border-top: 1px solid #eee;" />
+                                    <h4 style="margin-bottom: 5px;">Thông tin giao hàng:</h4>
+                                    <p style="margin: 5px 0;">📍 Địa chỉ nhận hàng: ${orderInfo.shippingAddress}</p>
+                                    <p style="margin: 5px 0;">💰 Tổng thanh toán khi nhận hàng: <strong style="color: #d32f2f;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                    <hr style="border: none; border-top: 1px solid #eee;" />
+                                    <p style="font-size: 11px; color: #888; text-align: center;">Chúc bạn có trải nghiệm tuyệt vời với sản phẩm của FruitShop!</p>
+                                </div>
+                            `
+                        });
+                        console.log(`✅ [Email Worker] Đã gửi thư SHIPPING thành công tới ${to}!`);
+                    }
+
+                    if (emailType === "ORDER_CANCELLED") {
+                        await resend.emails.send({
+                            from: "FruitShop <onboarding@resend.dev>",
+                            to: to,
+                            subject: subject,
+                            html: `
+                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                    <h2 style="color: #c62828; text-align: center;">Đơn hàng đã bị hủy 🚫</h2>
+                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                    <p>Chúng tôi rất tiếc phải thông báo rằng đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã bị hủy bỏ trên hệ thống.</p>
+                                    <hr style="border: none; border-top: 1px solid #eee;" />
+                                    <h4 style="margin-bottom: 5px;">Thông tin chi tiết:</h4>
+                                    <p style="margin: 5px 0;">💰 Giá trị đơn hàng: <strong>${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                    <p style="margin: 5px 0;">Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ hotline CSKH của FruitShop để được hỗ trợ.</p>
+                                    <hr style="border: none; border-top: 1px solid #eee;" />
+                                    <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống.</p>
+                                </div>
+                            `
+                        });
+                        console.log(`✅ [Email Worker] Đã gửi thư CANCELLED thành công tới ${to}!`);
+                    }
+
+                    if (emailType === "ORDER_DELIVERED") {
+                        await resend.emails.send({
+                            from: "FruitShop <onboarding@resend.dev>",
+                            to: to,
+                            subject: subject,
+                            html: `
+                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                    <h2 style="color: #2e7d32; text-align: center;">Đơn hàng giao thành công! 🎉🥳</h2>
+                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                    <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được giao thành công đến bạn.</p>
+                                    <hr style="border: none; border-top: 1px solid #eee;" />
+                                    <h4 style="margin-bottom: 5px;">Thông tin đơn hàng:</h4>
+                                    <p style="margin: 5px 0;">📍 Địa chỉ nhận hàng: ${orderInfo.shippingAddress}</p>
+                                    <p style="margin: 5px 0;">💰 Tổng số tiền đã thanh toán: <strong style="color: #2e7d32;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                    <hr style="border: none; border-top: 1px solid #eee;" />
+                                    <p style="font-size: 11px; color: #888; text-align: center;">Cám ơn bạn đã lựa chọn FruitShop. Rất mong được phục vụ bạn trong những lần mua sắm tiếp theo!</p>
+                                </div>
+                            `
+                        });
+                        console.log(`✅ [Email Worker] Đã gửi thư DELIVERED thành công tới ${to}!`);
+                    }
+
+                    if (emailType === "ADMIN_STOCK_ALERT") {
+                        const { data, error } = await resend.emails.send({
+                            from: "FruitShop <onboarding@resend.dev>",
+                            to: to,
+                            subject: subject,
+                            html: `
+                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ffccd5; max-width: 600px; border-radius: 8px; background-color: #fff5f5;">
+                                    <h2 style="color: #c62828; text-align: center; margin-top: 0;">⚠️ CẢNH BÁO TỒN KHO THẤP ⚠️</h2>
+                                    <p>Xin chào <strong>Admin</strong>,</p>
+                                    <p>Hệ thống ghi nhận sản phẩm <strong>${orderInfo.productName}</strong> đang có số lượng tồn kho giảm xuống dưới mức tối thiểu (&lt; 5).</p>
+                                    <hr style="border: none; border-top: 1px solid #ffccd5;" />
+                                    <h4 style="margin-bottom: 5px; margin-top: 10px;">Thông tin sản phẩm:</h4>
+                                    <p style="margin: 5px 0;">📦 Sản phẩm: <strong>${orderInfo.productName}</strong></p>
+                                    <p style="margin: 5px 0;">🚨 Số lượng tồn kho hiện tại: <strong style="color: #c62828; font-size: 16px;">${orderInfo.currentStock}</strong></p>
+                                    <hr style="border: none; border-top: 1px solid #ffccd5;" />
+                                    <p style="font-size: 11px; color: #888; text-align: center;">Thư cảnh báo tự động từ hệ thống quản lý kho FruitShop.</p>
+                                </div>
+                            `
+                        });
+
+                        if (error) {
+                            console.error("❌ [Email Worker] Resend API trả về lỗi:", error);
+                        } else {
+                            console.log(`✅ [Email Worker] Đã gửi thư CẢNH BÁO TỒN KHO thành công tới Admin: khacsy0@gmail.com!`);
+                        }
                     }
                 } catch (emailError) {
                     console.error("❌ [Email Worker] Lỗi khi gọi API Resend gửi mail:", emailError);
