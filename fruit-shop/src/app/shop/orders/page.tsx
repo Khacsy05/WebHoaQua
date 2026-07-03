@@ -25,6 +25,11 @@ export default function CustomerOrdersPage() {
 
     // State xử lý trạng thái lọc đơn hàng
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
+    const [searchQuery, setSearchQuery] = useState<string>('');
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, statusFilter]);
 
     // State xử lý hủy đơn hàng
     const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -134,9 +139,22 @@ export default function CustomerOrdersPage() {
         }
     };
 
-    const filteredOrders = statusFilter === 'ALL'
-        ? orders
-        : orders.filter(order => order.status === statusFilter);
+    const filteredOrders = orders.filter(order => {
+        const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
+        if (!matchesStatus) return false;
+
+        const orderIdStr = order._id?.toString().toLowerCase() || '';
+        const shortCode = orderIdStr.slice(-6);
+        const query = searchQuery.toLowerCase().trim();
+
+        return !query ||
+            orderIdStr.includes(query) ||
+            shortCode.includes(query) ||
+            order?.items?.some(item => {
+                const prodName = item.product_id?.name || '';
+                return prodName.toLowerCase().includes(query);
+            });
+    });
 
     if (loading && orders.length === 0) {
         return (
@@ -198,6 +216,34 @@ export default function CustomerOrdersPage() {
                             {tab.name}
                         </button>
                     ))}
+                </div>
+
+                {/* Search Bar */}
+                <div className="max-w-md">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm theo mã đơn hoặc tên sản phẩm..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-2xl text-xs bg-white text-gray-900 focus:ring-1 focus:ring-green-500 focus:border-green-500 focus:outline-none shadow-sm"
+                        />
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Table Container */}
@@ -334,12 +380,16 @@ export default function CustomerOrdersPage() {
                                                 <h3 className="text-sm font-bold text-gray-900">
                                                     {orders.length === 0
                                                         ? "Bạn chưa có đơn đặt hàng nào"
-                                                        : "Không tìm thấy đơn hàng nào"}
+                                                        : searchQuery
+                                                            ? "Không tìm thấy đơn hàng nào khớp với từ khóa tìm kiếm"
+                                                            : "Không tìm thấy đơn hàng nào"}
                                                 </h3>
                                                 <p className="text-[11px] text-gray-400 max-w-xs mx-auto leading-relaxed">
                                                     {orders.length === 0
                                                         ? "Hãy lựa chọn những loại trái cây tươi ngon đầu tiên cho giỏ hàng của bạn!"
-                                                        : "Bạn thử chọn bộ lọc trạng thái khác xem sao nhé."}
+                                                        : searchQuery
+                                                            ? `Không có đơn hàng nào chứa mã hoặc sản phẩm khớp với "${searchQuery}".`
+                                                            : "Bạn thử chọn bộ lọc trạng thái khác xem sao nhé."}
                                                 </p>
                                                 {orders.length === 0 && (
                                                     <Link

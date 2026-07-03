@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import UserAccount from "@/models/UserAccount";
 import { getKafkaProducer } from "@/lib/kafka";
+import { otpStore } from "@/lib/otpStore";
 export async function POST(request: Request) {
     try {
         await connectDB();
@@ -23,17 +24,24 @@ export async function POST(request: Request) {
         // 6 số
         const otpCode = Math.floor(Math.random() * 900000 + 100000);
         const expireIn = "5 phút";
-        const producer = await getKafkaProducer();
 
+        otpStore[email] = {
+            code: otpCode.toString(),
+            expires: Date.now() + 5 * 60 * 1000,
+            used: false
+        };
+        const producer = await getKafkaProducer();
+        console.log(`🔑 [OTP Store] Đã cất mã cho ${email}:`, otpStore[email]);
         const emailPayload = {
             emailType: "RESET_PASSWORD_OTP",
             to: email,
             subject: "🔒 Mã OTP khôi phục mật khẩu FruitShop của bạn",
             orderInfo: {
-                otpCode,
+                otpCode: otpCode.toString(),
                 expireIn
             }
         }
+
         await producer.send({
             topic: "fruit-emails-topic",
             messages: [{ value: JSON.stringify(emailPayload) }]

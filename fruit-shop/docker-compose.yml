@@ -1,4 +1,3 @@
-
 services:
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -29,5 +28,34 @@ services:
       - "9000:9000"
     environment:
       KAFKA_BROKERCONNECT: "kafka:29092"
+    depends_on:
+      - kafka
+
+  # 🌐 SERVICE WEB APP NEXT.JS
+  next-app:
+    container_name: fruit_shop_web
+    build:
+      context: .
+      dockerfile: Dockerfile.next
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      - kafka
+
+  # 🤖 SERVICE WORKER CHẠY NGẦM XỬ LÝ ĐƠN & GỬI EMAIL/OTP
+  worker:
+    container_name: fruit_shop_worker
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: always
+    environment:
+      - MONGODB_URI
+      - KAFKA_BROKERS=kafka:29092
+      - RESEND_API_KEY=re_your_resend_api_key_here
     depends_on:
       - kafka

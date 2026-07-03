@@ -5,6 +5,7 @@ export interface DecodedToken {
     username: string;
     role: "ROLE_ADMIN" | "ROLE_CUSTOMER";
     customerId?: string;
+    email: string;
 }
 
 // Hàm giải mã và kiểm tra quyền từ Header của Request gửi lên

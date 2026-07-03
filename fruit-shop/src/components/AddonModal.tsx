@@ -51,11 +51,16 @@ export default function AddonModal({ isOpen, onClose, product, username, onCartU
 
     const handleConfirmAddCart = () => {
         if (!product) return;
-        
-        const selectedAddonsList = (Object.keys(addons) as Array<keyof AddonsState>).filter(key => addons[key]);
-        
+
+        const selectedAddonsList = (Object.keys(addons) as Array<keyof AddonsState>)
+            .filter(key => addons[key]) // Chỉ lấy các dịch vụ được tích chọn (true)
+            .map(key => ({
+                name: key,              // Ví dụ: 'engrave'
+                price: addonPrices[key] // Ví dụ: 50000
+            }));
+
         addToCart(product, quantity, selectedAddonsList, username);
-        
+
         onClose();
         onCartUpdated();
         showNotification('Đã thêm vào giỏ hàng!');
@@ -88,8 +93,8 @@ export default function AddonModal({ isOpen, onClose, product, username, onCartU
                             <div
                                 key={key}
                                 className={`flex items-center justify-center p-3 border rounded-lg cursor-pointer transition ${addons[key]
-                                        ? 'border-red-600 bg-red-50/50 text-red-600 font-semibold'
-                                        : 'border-gray-200 text-gray-700 hover:border-gray-300 bg-white'
+                                    ? 'border-red-600 bg-red-50/50 text-red-600 font-semibold'
+                                    : 'border-gray-200 text-gray-700 hover:border-gray-300 bg-white'
                                     }`}
                                 onClick={() => handleCheckboxChange(key)}
                             >
