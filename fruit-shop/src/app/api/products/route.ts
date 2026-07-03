@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Product from "@/models/Product";
 import { verifyAuth } from "@/lib/auth";
-import path from "path";
-import fs from "fs/promises";
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function GET(request: Request) {
     try {
@@ -57,20 +62,18 @@ export async function POST(request: Request) {
         if (imageFile && imageFile.size > 0) {
             const bytes = await imageFile.arrayBuffer();
             const buffer = Buffer.from(bytes);
-            const uniqueName = `${Date.now()}-${imageFile.name}`;
 
-            // Đường dẫn lưu file vào thư mục public/uploads để client truy cập trực tiếp được
-            const uploadDir = path.join(process.cwd(), "public", "images");
-            const filePath = path.join(uploadDir, uniqueName);
+            const uploadResult = await new Promise<any>((resolve, reject) => {
+                cloudinary.uploader.upload_stream(
+                    { folder: 'fruit-shop-products' },
+                    (error, result) => {
+                        if (error) reject(error);
+                        else resolve(result);
+                    }
+                ).end(buffer);
+            });
 
-            // Tự động tạo thư mục public/uploads nếu chưa tồn tại
-            await fs.mkdir(uploadDir, { recursive: true });
-
-            // Ghi file vào ổ đĩa
-            await fs.writeFile(filePath, buffer);
-
-            // Đường dẫn URL lưu vào DB (ví dụ: /uploads/171819123-anh.jpg)
-            imageUrl = `/images/${uniqueName}`;
+            imageUrl = uploadResult.secure_url;
         }
 
         const newProduct = await Product.create({

@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Product from "@/models/Product";
 import { verifyAuth } from "@/lib/auth";
-import path from "path";
-import fs from "fs/promises";
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -64,15 +69,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             const file = imageFile as File;
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
-            const uniqueName = `${Date.now()}-${file.name}`;
 
-            const uploadDir = path.join(process.cwd(), "public", "images");
-            const filePath = path.join(uploadDir, uniqueName);
+            const uploadResult = await new Promise<any>((resolve, reject) => {
+                cloudinary.uploader.upload_stream(
+                    { folder: 'fruit-shop-products' },
+                    (error, result) => {
+                        if (error) reject(error);
+                        else resolve(result);
+                    }
+                ).end(buffer);
+            });
 
-            await fs.mkdir(uploadDir, { recursive: true });
-            await fs.writeFile(filePath, buffer);
-
-            imageUrl = `/images/${uniqueName}`;
+            imageUrl = uploadResult.secure_url;
         }
 
         const updatedProduct = await Product.findByIdAndUpdate(
