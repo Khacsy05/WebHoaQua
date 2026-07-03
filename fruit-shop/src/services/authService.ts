@@ -96,3 +96,53 @@ export async function sendOtpCode(email: string) {
         return { success: false, message: error.message || "Lỗi mạng" };
     }
 }
+
+export async function verifyOtpCode(email: string, otp: string) {
+    try {
+        const response = await fetch("/api/auth/verifyOtp", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email, otp })
+        });
+        return await response.json();
+    } catch (error: any) {
+        console.error("Lỗi khi xác thực OTP:", error);
+        return { success: false, message: error.message || "Lỗi mạng" };
+    }
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+    try {
+        const response = await fetch("/api/auth/resetPass", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ token, newPassword })
+        });
+        return await response.json();
+    } catch (error: any) {
+        console.error("Lỗi khi khôi phục mật khẩu:", error);
+        return { success: false, message: error.message || "Lỗi mạng" };
+    }
+}
+
+export async function changePassword(oldPassword: string, newPassword: string) {
+    try {
+
+        const response = await fetch("/api/auth/changePass", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify({ oldPassword, newPassword })
+        });
+        return await response.json();
+    } catch (error: any) {
+        console.error("Lỗi khi đổi mật khẩu:", error);
+        return { success: false, message: error.message || "Lỗi mạng" };
+    }
+}

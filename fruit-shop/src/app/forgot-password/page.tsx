@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { sendOtpCode } from '@/services/authService';
+import { sendOtpCode, verifyOtpCode, resetPassword } from '@/services/authService';
 
 export default function ForgotPasswordPage() {
     const router = useRouter();
@@ -10,11 +10,12 @@ export default function ForgotPasswordPage() {
     const [otp, setOtp] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    
+    const [token, setToken] = useState('');
+
     // Luồng: Step 1 (Nhập Email & Nhập OTP) -> Step 2 (Reset mật khẩu & Confirm mật khẩu)
     const [step, setStep] = useState<1 | 2>(1);
     const [otpSent, setOtpSent] = useState(false);
-    
+
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
@@ -56,15 +57,19 @@ export default function ForgotPasswordPage() {
         }
 
         setLoading(true);
-        // Giả lập xác thực OTP (Do chưa có API verifyOtp, bất kỳ mã 6 số nào cũng được chấp nhận để test)
-        setTimeout(() => {
-            setSuccessMsg('Xác thực OTP thành công!');
+        const res = await verifyOtpCode(email, otp);
+        if (res.success) {
+            setSuccessMsg(res.message || 'Xác thực OTP thành công!');
+            setToken(res.token);
             setLoading(false);
             setTimeout(() => {
                 setSuccessMsg('');
                 setStep(2); // Chuyển sang trang đặt lại mật khẩu mới
             }, 800);
-        }, 800);
+        } else {
+            setErrorMsg(res.message || res.error || 'Mã OTP không chính xác hoặc đã hết hạn.');
+            setLoading(false);
+        }
     };
 
     // Thực hiện đặt lại mật khẩu mới
@@ -83,14 +88,17 @@ export default function ForgotPasswordPage() {
         }
 
         setLoading(true);
-        // Giả lập thay đổi mật khẩu thành công (Có thể nối với API update password sau này)
-        setTimeout(() => {
+        const res = await resetPassword(token, newPassword);
+        if (res.success) {
             setSuccessMsg('Khôi phục mật khẩu thành công! Hãy đăng nhập lại bằng mật khẩu mới.');
             setLoading(false);
             setTimeout(() => {
                 router.push('/login');
             }, 1800);
-        }, 1200);
+        } else {
+            setErrorMsg(res.message || res.error || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.');
+            setLoading(false);
+        }
     };
 
     return (
@@ -99,8 +107,8 @@ export default function ForgotPasswordPage() {
                 <div className="mb-6 text-center">
                     <div className="text-3xl font-extrabold text-green-600 tracking-tight mb-2">FruitShop</div>
                     <p className="text-gray-500 text-sm">
-                        {step === 1 
-                            ? 'Nhập email của bạn để nhận mã OTP xác thực khôi phục tài khoản.' 
+                        {step === 1
+                            ? 'Nhập email của bạn để nhận mã OTP xác thực khôi phục tài khoản.'
                             : 'Thiết lập mật khẩu mới cho tài khoản FruitShop của bạn.'}
                     </p>
                 </div>

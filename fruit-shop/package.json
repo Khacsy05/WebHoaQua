@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "worker": "npx tsx --env-file=.env.local src/worker.ts"
+    "worker": "npx tsx -r dotenv/config src/worker.ts dotenv_config_path=.env.local"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

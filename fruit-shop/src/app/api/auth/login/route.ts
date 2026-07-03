@@ -40,6 +40,7 @@ export async function POST(request: Request) {
                 userId: user._id, 
                 username: user.username, 
                 role: user.role,
+                email: user.email,
                 customerId: customerInfo ? customerInfo._id : null
             },
             process.env.JWT_SECRET!,
