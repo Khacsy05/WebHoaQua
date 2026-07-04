@@ -26,7 +26,10 @@ const transporter = nodemailer.createTransport({
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
     },
-    family: 4, // 💡 Ép buộc sử dụng IPv4 (tránh lỗi IPv6 ENETUNREACH trên Render)
+    lookup: (hostname: any, options: any, callback: any) => {
+        // Ép buộc phân giải ra IPv4 (family: 4) để tránh lỗi mạng IPv6 trên Render
+        dns.lookup(hostname, { ...options, family: 4 }, callback);
+    },
     connectionTimeout: 5000, // Giới hạn thời gian kết nối 5s tránh bị treo Worker trên Render
     greetingTimeout: 5000,
     socketTimeout: 5000,
