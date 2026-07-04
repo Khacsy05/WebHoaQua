@@ -16,18 +16,18 @@ const consumer = kafka.consumer({ groupId: "fruit-shop-worker-group" });
 const producer = kafka.producer();
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // Thôi cấu hình thủ công host/port, để Nodemailer tự lo cho Gmail
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_SECURE,
+    // Sử dụng IP trực tiếp để ép Render không phân giải ra IPv6 bậy bạ
+    host: '74.125.130.108',
+    port: 587,             // Đi đúng cổng 587 đã mở trên Render
+    secure: false,         // Bắt buộc false với cổng 587
     auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
     },
-    extendedConfig: true,
-    connectionTimeout: 5000, // Giới hạn thời gian kết nối 5s tránh bị treo Worker trên Render
-    greetingTimeout: 5000,
-    socketTimeout: 5000,
-} as any);
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
+});
 
 async function startWorker() {
     // 1. Kết nối Database và Kafka
