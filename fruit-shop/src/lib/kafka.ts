@@ -6,13 +6,12 @@ const saslUsername = process.env.KAFKA_SASL_USERNAME;
 const saslPassword = process.env.KAFKA_SASL_PASSWORD;
 const brokerList = [process.env.KAFKA_BROKERS || 'localhost:9092'];
 
-// Kiểm tra xem có đang dùng broker local không (local không cần SASL)
-const isLocal = brokerList.some(b => b.includes('localhost') || b.includes('kafka:29092') || b.includes('127.0.0.1'));
+const isCloud = !!(saslUsername && saslPassword);
 
-const saslConfig = (!isLocal && saslUsername && saslPassword) ? {
-    mechanism: 'scram-sha-256' as const,
-    username: saslUsername,
-    password: saslPassword
+const saslConfig = isCloud ? {
+    mechanism: 'plain' as const, // 💡 Thử đổi sang 'plain' nếu scram-sha-256 bị từ chối kết nối TLS
+    username: saslUsername!,
+    password: saslPassword!
 } : undefined;
 
 const globalForKafka = global as unknown as { kafka: Kafka; producer: Producer };
@@ -24,7 +23,10 @@ export const kafka =
         brokers: brokerList,
         logLevel: logLevel.ERROR, // Chỉ hiện log khi có lỗi lớn
         sasl: saslConfig,
-        ssl: !isLocal && saslConfig ? { rejectUnauthorized: false } : false
+        ssl: isCloud ? { rejectUnauthorized: false } : false,
+
+        connectionTimeout: 10000,
+        authenticationTimeout: 10000,
     });
 
 export const getKafkaProducer = async (): Promise<Producer> => {

@@ -34,10 +34,10 @@ export async function GET() {
 
         // 2. Tạo dữ liệu mẫu cho CUSTOMERS
         const customers = await Customer.create([
-            { 
-                name: "Nguyễn Khắc Sỹ", 
-                email: "khacsy0@gmail.com", 
-                phone: "0987654321", 
+            {
+                name: "Nguyễn Khắc Sỹ",
+                email: "khacsy0@gmail.com",
+                phone: "0987654321",
                 address: "175 Tây Sơn, Đống Đa, Hà Nội",
                 user_id: users[1]._id
             },
