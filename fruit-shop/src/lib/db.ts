@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/fake-db-for-build";
 
-if (!MONGODB_URI) {
-  throw new Error("Vui lòng cấu hình biến MONGODB_URI trong file .env");
+if (!process.env.MONGODB_URI) {
+  console.warn("⚠️ Cảnh báo: Chưa tìm thấy MONGODB_URI, sử dụng fake URI để build.");
 }
 
 let cached = (global as any).mongoose;
