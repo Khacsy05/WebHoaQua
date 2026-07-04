@@ -17,11 +17,13 @@ const producer = kafka.producer();
 
 const transporter = nodemailer.createTransport({
     service: 'gmail', // Thôi cấu hình thủ công host/port, để Nodemailer tự lo cho Gmail
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE,
     auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
     },
-
+    extendedConfig: true,
     connectionTimeout: 5000, // Giới hạn thời gian kết nối 5s tránh bị treo Worker trên Render
     greetingTimeout: 5000,
     socketTimeout: 5000,
