@@ -1,6 +1,3 @@
-// src/worker.ts
-import dns from "dns";
-dns.setDefaultResultOrder("ipv4first"); // 💡 Ép buộc Node.js ưu tiên phân giải tên miền ra IPv4 trước (tránh lỗi IPv6 trên Render)
 
 import { connectDB } from "./lib/db";
 import { kafka } from "./lib/kafka";
@@ -19,17 +16,12 @@ const consumer = kafka.consumer({ groupId: "fruit-shop-worker-group" });
 const producer = kafka.producer();
 
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
+    service: 'gmail', // Thôi cấu hình thủ công host/port, để Nodemailer tự lo cho Gmail
     auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
     },
-    lookup: (hostname: any, options: any, callback: any) => {
-        // Ép buộc phân giải ra IPv4 (family: 4) để tránh lỗi mạng IPv6 trên Render
-        dns.lookup(hostname, { ...options, family: 4 }, callback);
-    },
+
     connectionTimeout: 5000, // Giới hạn thời gian kết nối 5s tránh bị treo Worker trên Render
     greetingTimeout: 5000,
     socketTimeout: 5000,
