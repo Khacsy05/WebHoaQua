@@ -1,4 +1,7 @@
 // src/worker.ts
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first"); // 💡 Ép buộc Node.js ưu tiên phân giải tên miền ra IPv4 trước (tránh lỗi IPv6 trên Render)
+
 import { connectDB } from "./lib/db";
 import { kafka } from "./lib/kafka";
 import ShopOrder from "./models/ShopOrder";
