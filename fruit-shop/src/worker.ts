@@ -9,12 +9,21 @@ import DashboardStat from "./models/DashboardStat";
 import Addon from "./models/Addon";
 import Customer from "./models/Customer";
 import UserAccount from "./models/UserAccount";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 const consumer = kafka.consumer({ groupId: "fruit-shop-worker-group" });
 // 🚨 THÊM PRODUCER: Để chuyển tiếp tin nhắn sang topic email
 const producer = kafka.producer();
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
+    },
+});
 
 async function startWorker() {
     // 1. Kết nối Database và Kafka
@@ -188,13 +197,13 @@ async function startWorker() {
                     // 🚨 ĐẨY SỰ KIỆN GỬI EMAIL VÀO KAFKA (Hóa đơn gửi khách)
                     const emailPayload = {
                         emailType: "CUSTOMER_INVOICE",
-                        to: data.customerEmail || dbCustomer?.email || "khacsy0@e.tlu.edu.vn", // Ưu tiên email khách từ API gửi qua, không thì lấy mail dự phòng của bạn
+                        to: dbCustomer?.email, // Ưu tiên email khách từ API gửi qua, không thì lấy mail dự phòng của bạn
                         subject: `🛒 Hóa đơn đặt hàng thành công tại FruitShop #${orderId}`,
                         orderInfo: {
                             orderId,
-                            customerName: data.customerName || dbCustomer?.name || "Khách hàng",
+                            customerName: data.customerName || dbCustomer?.name,
                             payable_amount: amount,
-                            shippingAddress: data.shippingAddress || dbCustomer?.address || "Tại cửa hàng"
+                            shippingAddress: data.shippingAddress || dbCustomer?.address
                         }
                     };
 
@@ -221,12 +230,15 @@ async function startWorker() {
                     const { to, subject, orderInfo, emailType } = payload;
                     console.log(`\n📩 [Email Worker] Nhận lệnh gửi mail tới địa chỉ: ${to}`);
 
+                    const mailOptions = {
+                        from: process.env.SMTP_FROM || `"FruitShop" <${process.env.SMTP_USER}>`,
+                        to: to,
+                        subject: subject,
+                        html: ''
+                    };
+
                     if (emailType === "CUSTOMER_INVOICE") {
-                        await resend.emails.send({
-                            from: "FruitShop <onboarding@resend.dev>", // Tên brand hiển thị test
-                            to: to,
-                            subject: subject,
-                            html: `
+                        mailOptions.html = `
                                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
                                     <h2 style="color: #2e7d32; text-align: center;">Cám ơn bạn đã mua hàng! 🍎🥑</h2>
                                     <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
@@ -238,16 +250,12 @@ async function startWorker() {
                                     <hr style="border: none; border-top: 1px solid #eee;" />
                                     <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống luồng ngầm Kafka.</p>
                                 </div>
-                            `
-                        });
+                            `;
+                        await transporter.sendMail(mailOptions);
                         console.log(`✅ [Email Worker] Đã gửi thư thành công tới ${to}!`);
                     }
                     if (emailType === "RESET_PASSWORD_OTP") {
-                        await resend.emails.send({
-                            from: "FruitShop <onboarding@resend.dev>",
-                            to: to,
-                            subject: subject,
-                            html: `
+                        mailOptions.html = `
                                 <div style="font-family: sans-serif; padding: 25px; border: 1px solid #e0e0e0; max-width: 500px; border-radius: 12px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                                     <h2 style="color: #1e88e5; text-align: center; margin-top: 0;">Khôi phục mật khẩu 🔑</h2>
                                     <p>Chào bạn,</p>
@@ -261,16 +269,12 @@ async function startWorker() {
                                     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
                                     <p style="font-size: 11px; color: #999; text-align: center;">Nếu bạn không yêu cầu hành động này, bạn có thể an tâm bỏ qua email này.</p>
                                 </div>
-                            `
-                        });
+                            `;
+                        await transporter.sendMail(mailOptions);
                         console.log(`✅ [Email Worker] Đã gửi mã OTP bảo mật tới thành công ${to}!`);
                     }
                     if (emailType === "ORDER_SHIPPING") {
-                        await resend.emails.send({
-                            from: "FruitShop <onboarding@resend.dev>",
-                            to: to,
-                            subject: subject,
-                            html: `
+                        mailOptions.html = `
                                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
                                     <h2 style="color: #0288d1; text-align: center;">Đơn hàng của bạn đang được giao! 🚚✨</h2>
                                     <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
@@ -282,17 +286,13 @@ async function startWorker() {
                                     <hr style="border: none; border-top: 1px solid #eee;" />
                                     <p style="font-size: 11px; color: #888; text-align: center;">Chúc bạn có trải nghiệm tuyệt vời với sản phẩm của FruitShop!</p>
                                 </div>
-                            `
-                        });
+                            `;
+                        await transporter.sendMail(mailOptions);
                         console.log(`✅ [Email Worker] Đã gửi thư SHIPPING thành công tới ${to}!`);
                     }
 
                     if (emailType === "ORDER_CANCELLED") {
-                        await resend.emails.send({
-                            from: "FruitShop <onboarding@resend.dev>",
-                            to: to,
-                            subject: subject,
-                            html: `
+                        mailOptions.html = `
                                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
                                     <h2 style="color: #c62828; text-align: center;">Đơn hàng đã bị hủy 🚫</h2>
                                     <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
@@ -304,17 +304,13 @@ async function startWorker() {
                                     <hr style="border: none; border-top: 1px solid #eee;" />
                                     <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống.</p>
                                 </div>
-                            `
-                        });
+                            `;
+                        await transporter.sendMail(mailOptions);
                         console.log(`✅ [Email Worker] Đã gửi thư CANCELLED thành công tới ${to}!`);
                     }
 
                     if (emailType === "ORDER_DELIVERED") {
-                        await resend.emails.send({
-                            from: "FruitShop <onboarding@resend.dev>",
-                            to: to,
-                            subject: subject,
-                            html: `
+                        mailOptions.html = `
                                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
                                     <h2 style="color: #2e7d32; text-align: center;">Đơn hàng giao thành công! 🎉🥳</h2>
                                     <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
@@ -326,17 +322,13 @@ async function startWorker() {
                                     <hr style="border: none; border-top: 1px solid #eee;" />
                                     <p style="font-size: 11px; color: #888; text-align: center;">Cám ơn bạn đã lựa chọn FruitShop. Rất mong được phục vụ bạn trong những lần mua sắm tiếp theo!</p>
                                 </div>
-                            `
-                        });
+                            `;
+                        await transporter.sendMail(mailOptions);
                         console.log(`✅ [Email Worker] Đã gửi thư DELIVERED thành công tới ${to}!`);
                     }
 
                     if (emailType === "ADMIN_STOCK_ALERT") {
-                        const { data, error } = await resend.emails.send({
-                            from: "FruitShop <onboarding@resend.dev>",
-                            to: to,
-                            subject: subject,
-                            html: `
+                        mailOptions.html = `
                                 <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ffccd5; max-width: 600px; border-radius: 8px; background-color: #fff5f5;">
                                     <h2 style="color: #c62828; text-align: center; margin-top: 0;">⚠️ CẢNH BÁO TỒN KHO THẤP ⚠️</h2>
                                     <p>Xin chào <strong>Admin</strong>,</p>
@@ -348,17 +340,12 @@ async function startWorker() {
                                     <hr style="border: none; border-top: 1px solid #ffccd5;" />
                                     <p style="font-size: 11px; color: #888; text-align: center;">Thư cảnh báo tự động từ hệ thống quản lý kho FruitShop.</p>
                                 </div>
-                            `
-                        });
-
-                        if (error) {
-                            console.error("❌ [Email Worker] Resend API trả về lỗi:", error);
-                        } else {
-                            console.log(`✅ [Email Worker] Đã gửi thư CẢNH BÁO TỒN KHO thành công tới Admin: khacsy0@gmail.com!`);
-                        }
+                            `;
+                        await transporter.sendMail(mailOptions);
+                        console.log(`✅ [Email Worker] Đã gửi thư CẢNH BÁO TỒN KHO thành công tới Admin: ${to}!`);
                     }
                 } catch (emailError) {
-                    console.error("❌ [Email Worker] Lỗi khi gọi API Resend gửi mail:", emailError);
+                    console.error("❌ [Email Worker] Lỗi khi gửi mail qua SMTP:", emailError);
                 }
             }
         }
