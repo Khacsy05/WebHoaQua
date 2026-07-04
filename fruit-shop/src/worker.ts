@@ -23,6 +23,9 @@ const transporter = nodemailer.createTransport({
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
     },
+    connectionTimeout: 5000, // Giới hạn thời gian kết nối 5s tránh bị treo Worker trên Render
+    greetingTimeout: 5000,
+    socketTimeout: 5000,
 });
 
 async function startWorker() {
