@@ -10,6 +10,7 @@ import { addToCart } from '@/utils/cart';
 import { formatCurrency, getProductImage, showNotification } from '@/utils/helpers';
 import { Addon, Product } from '@/types/shop';
 import { fetchAddons } from '@/services/addonService';
+import Header from '@/components/Header';
 
 const isAddonAllowed = (addon: Addon, productCategory: any): boolean => {
     if (!addon.allowed_categories || addon.allowed_categories.length === 0) return true;
@@ -150,9 +151,11 @@ export default function ProductDetailPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-10 px-4">
-            <div className="max-w-5xl mx-auto">
-                {/* Back Button & Breadcrumbs */}
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+            <Header />
+            <div className="py-10 px-4 flex-1">
+                <div className="max-w-5xl mx-auto">
+                    {/* Back Button & Breadcrumbs */}
                 <div className="mb-6 flex items-center justify-between">
                     <button
                         onClick={() => router.back()}
@@ -305,6 +308,7 @@ export default function ProductDetailPage() {
                         )}
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );

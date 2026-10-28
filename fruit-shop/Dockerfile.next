@@ -1,15 +1,46 @@
-FROM node:22-alpine
-
+# 1. Stage cài đặt dependencies
+FROM node:22-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Sao chép file cấu hình package trước để tối ưu hóa cache layer
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Sao chép toàn bộ code còn lại và tiến hành Build
+# 2. Stage build ứng dụng Next.js
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+
+# 3. Stage chạy ứng dụng (Runner) - cực kỳ nhẹ
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Chỉ sao chép các tệp cần thiết sau khi build để tối ưu hóa dung lượng
+COPY --from=builder /app/public ./public
+
+# Phân quyền thư mục .next cho user nextjs
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+
+# Sao chép thư mục build standalone và static
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 
 EXPOSE 3000
 
-CMD npm run start & npm run worker
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

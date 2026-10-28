@@ -3,6 +3,8 @@ export interface Category {
     _id?: string;
     name: string;
     description: string;
+    isFeatured?: boolean;
+    icon?: string;
 }
 
 export interface Product {

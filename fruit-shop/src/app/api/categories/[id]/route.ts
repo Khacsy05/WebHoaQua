@@ -15,7 +15,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         await connectDB();
         const { id } = await params;
         const body = await request.json();
-        const { name, description } = body;
+        const { name, description, isFeatured, icon } = body;
 
         if (!name) {
             return NextResponse.json({ success: false, message: "Tên danh mục không được để trống" }, { status: 400 });
@@ -33,9 +33,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             );
         }
 
+        const updateData: any = { name: name.trim(), description };
+        if (typeof isFeatured !== 'undefined') updateData.isFeatured = Boolean(isFeatured);
+        if (typeof icon !== 'undefined') updateData.icon = icon;
+
         const updatedCategory = await Category.findByIdAndUpdate(
             id,
-            { name: name.trim(), description },
+            updateData,
             { new: true }
         );
 

@@ -8,6 +8,7 @@ import { Order } from '@/types/shop';
 import { formatCurrency, getProductImage } from '@/utils/helpers';
 import { useAuthStore } from '@/store/useAuthStore';
 import { toast } from 'sonner';
+import Header from '@/components/Header';
 
 export default function CustomerOrdersPage() {
     const router = useRouter();
@@ -168,8 +169,10 @@ export default function CustomerOrdersPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-10 px-4">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+            <Header />
+            <div className="py-10 px-4 flex-1">
+                <div className="max-w-4xl mx-auto space-y-6">
 
                 {/* Header breadcrumb & Title */}
                 <div className="flex items-center justify-between text-xs">
@@ -444,6 +447,7 @@ export default function CustomerOrdersPage() {
                         </div>
                     )}
                 </div>
+            </div>
             </div>
         </div>
     );

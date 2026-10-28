@@ -1,9 +1,19 @@
 import { Product, Category } from "@/types/shop";
 import { getAuthHeaders } from "@/services/authService";
 
-export async function fetchProducts(categoryId?: string | number | null): Promise<Product[]> {
+export async function fetchProducts(
+    categoryId?: string | number | null,
+    search?: string | null,
+    limit?: number | null
+): Promise<Product[]> {
     try {
-        const url = categoryId ? `/api/products?categoryId=${categoryId}` : '/api/products';
+        const params = new URLSearchParams();
+        if (categoryId) params.append("categoryId", String(categoryId));
+        if (search && search.trim()) params.append("search", search.trim());
+        if (limit) params.append("limit", String(limit));
+
+        const queryString = params.toString();
+        const url = queryString ? `/api/products?${queryString}` : '/api/products';
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch products");
         const res = await response.json();

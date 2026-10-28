@@ -43,13 +43,16 @@ export async function GET() {
             },
         ]);
 
-        // 3. Tạo dữ liệu mẫu cho CATEGORIES
+        // 3. Tạo dữ liệu mẫu cho CATEGORIES (Thêm isFeatured và icon)
         const categories = await Category.create([
-            { name: "Trái Cây Nhập Khẩu", description: "Hoa quả cao cấp nhập khẩu từ Úc, Mỹ, New Zealand, Hàn Quốc" },
-            { name: "Trái Cây Nội Địa", description: "Đặc sản trái cây vùng miền nổi tiếng Việt Nam, chuẩn VietGAP" },
-            { name: "Hộp Quà Trái Cây", description: "Hộp quà, giỏ quà trái cây sang trọng thích hợp đi tặng, biếu" },
-            { name: "Trái Cây Sấy & Khô", description: "Trái cây sấy khô tự nhiên, ăn nhẹ bổ dưỡng tốt cho sức khỏe" },
-            { name: "Nước Ép Trái Cây", description: "Nước ép từ hoa quả tươi nguyên chất 100% không thêm đường" }
+            { name: "Trái Cây Nhập Khẩu", description: "Hoa quả cao cấp nhập khẩu từ Úc, Mỹ, New Zealand, Hàn Quốc", isFeatured: true, icon: "🍎" },
+            { name: "Trái Cây Nội Địa", description: "Đặc sản trái cây vùng miền nổi tiếng Việt Nam, chuẩn VietGAP", isFeatured: true, icon: "🍊" },
+            { name: "Hộp Quà Trái Cây", description: "Hộp quà, giỏ quà trái cây sang trọng thích hợp đi tặng, biếu", isFeatured: true, icon: "🎁" },
+            { name: "Nước Ép Trái Cây", description: "Nước ép từ hoa quả tươi nguyên chất 100% không thêm đường", isFeatured: true, icon: "🍹" },
+            { name: "Trái Cây Sấy & Khô", description: "Trái cây sấy khô tự nhiên, ăn nhẹ bổ dưỡng tốt cho sức khỏe", isFeatured: false, icon: "🥭" },
+            { name: "Rau Củ Quả Hữu Cơ", description: "Rau củ hữu cơ chuẩn nông trại xanh không thuốc trừ sâu", isFeatured: false, icon: "🥬" },
+            { name: "Set Trái Cây Cắt Sẵn", description: "Trái cây tươi gọt sẵn đóng hộp sạch sẽ tiện lợi", isFeatured: false, icon: "🍉" },
+            { name: "Sinh Tố & Detox", description: "Sinh tố dinh dưỡng thanh lọc cơ thể giảm cân đẹp da", isFeatured: false, icon: "🥑" }
         ]);
 
         // 4. Tạo dữ liệu mẫu cho PRODUCTS (Cần lấy _id của Category tương ứng gắn vào)

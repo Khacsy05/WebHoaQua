@@ -72,9 +72,9 @@ export async function POST(request: Request) {
                 customer_id,
                 items, // [{ product_id, quantity, addons }]
                 promotion_id,
-                customerEmail: customer?.email || "khacsy0@e.tlu.edu.vn",
-                customerName: customer?.name || "Khách hàng",
-                shippingAddress: address || customer?.address || "Tại cửa hàng",
+                customerEmail: customer?.email,
+                customerName: customer?.name,
+                shippingAddress: address || customer?.address,
                 createdAt: new Date()
             }
         };
