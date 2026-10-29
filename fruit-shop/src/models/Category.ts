@@ -3,12 +3,16 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ICategory extends Document {
   name: string;
   description?: string;
+  isFeatured?: boolean;
+  icon?: string;
 }
 
 const CategorySchema = new Schema<ICategory>(
   {
     name: { type: String, required: true },
     description: { type: String, default: null },
+    isFeatured: { type: Boolean, default: false },
+    icon: { type: String, default: null }
   },
   { timestamps: true } // Tự động thêm createdAt và updatedAt
 );

@@ -56,6 +56,7 @@ async function sendBrevoEmail(to: string, subject: string, htmlContent: string) 
         console.log(`✅ [Brevo Email] Đã gửi thư thành công tới ${to}! MessageId:`, resData.messageId);
     } catch (error) {
         console.error(`❌ [Brevo Email] Lỗi khi gửi mail tới ${to}:`, error);
+        throw error;
     }
 }
 
@@ -92,138 +93,150 @@ async function startWorker() {
     });
     console.log("🤖 Worker đã khởi động, đang canh gác Đơn Hàng và Email...");
 
-    // 3. Vòng lặp liên tục lắng nghe tin nhắn mới
     await consumer.run({
-        eachMessage: async ({ topic, message }) => { // 🚨 Thêm biến topic vào đây để phân biệt
+        autoCommit: false, // 💡 Tắt tự động commit để quản lý offset thủ công
+        eachMessage: async ({ topic, partition, message }) => {
             const rawValue = message.value?.toString();
             if (!rawValue) return;
 
             const payload = JSON.parse(rawValue);
 
-            // =================================================================
-            // LUỒNG 1: XỬ LÝ ĐƠN HÀNG (Từ fruit-orders-topic)
-            // =================================================================
-            if (topic === "fruit-orders-topic" && payload.event === "OrderPlaced") {
-                const { data } = payload;
-                console.log(`\n📥 [Kafka] Nhận được đơn hàng mới cần xử lý ngầm. ID tạm thời: ${data.orderId}`);
+            try {
+                // =================================================================
+                // LUỒNG 1: XỬ LÝ ĐƠN HÀNG (Từ fruit-orders-topic)
+                // =================================================================
+                if (topic === "fruit-orders-topic" && payload.event === "OrderPlaced") {
+                    const { data } = payload;
+                    console.log(`\n📥 [Kafka] Nhận được đơn hàng mới cần xử lý ngầm. ID tạm thời: ${data.orderId}`);
 
-                try {
                     const { orderId, customer_id, items, promotion_id } = data;
 
+                    // 💡 KIỂM TRA TRÙNG LẶP (IDEMPOTENCY CHECK)
+                    // Nếu đơn hàng đã tồn tại trong DB, bỏ qua bước lưu DB và trừ kho, chỉ tiến hành gửi lại email hóa đơn
+                    const existingOrder = await ShopOrder.findById(orderId);
+
                     let total_amount = 0;
-                    const orderItemsData = [];
+                    let discount_amount = 0;
+                    let payable_amount = 0;
 
-                    // Lặp qua danh sách item để kiểm tra và tính tiền gốc trong DB
-                    for (const item of items) {
-                        const product = await Product.findById(item.product_id);
-                        if (!product || product.stock < item.quantity) {
-                            console.log(`❌ Sản phẩm ${item.product_id} lỗi kho hoặc không tồn tại. Hủy xử lý đơn.`);
-                            return;
-                        }
+                    if (existingOrder) {
+                        console.log(`⚠️ [Idempotency] Đơn hàng #${orderId} đã tồn tại trong MongoDB. Bỏ qua ghi DB & trừ kho, tiến hành gửi lại email hóa đơn.`);
+                        payable_amount = existingOrder.payable_amount;
+                    } else {
+                        const orderItemsData = [];
 
-                        // Tính thêm tiền của các dịch vụ đi kèm nếu có
-                        let addonsTotal = 0;
-                        if (item.addons) {
-                            const addonNames = item.addons.split(',').map((name: string) => name.trim());
-                            for (const addonName of addonNames) {
-                                const addonObj = await Addon.findOne({
-                                    name: { $regex: new RegExp(`^${addonName}$`, "i") }
-                                });
-                                if (addonObj) {
-                                    addonsTotal += addonObj.price;
+                        // Lặp qua danh sách item để kiểm tra và tính tiền gốc trong DB
+                        for (const item of items) {
+                            const product = await Product.findById(item.product_id);
+                            if (!product || product.stock < item.quantity) {
+                                console.log(`❌ Sản phẩm ${item.product_id} lỗi kho hoặc không tồn tại. Hủy xử lý đơn.`);
+                                return;
+                            }
+
+                            // Tính thêm tiền của các dịch vụ đi kèm nếu có
+                            let addonsTotal = 0;
+                            if (item.addons) {
+                                const addonNames = item.addons.split(',').map((name: string) => name.trim());
+                                for (const addonName of addonNames) {
+                                    const addonObj = await Addon.findOne({
+                                        name: { $regex: new RegExp(`^${addonName}$`, "i") }
+                                    });
+                                    if (addonObj) {
+                                        addonsTotal += addonObj.price;
+                                    }
+                                }
+                            }
+
+                            const finalUnitPrice = product.price + addonsTotal;
+                            const itemTotal = finalUnitPrice * item.quantity;
+                            total_amount += itemTotal;
+
+                            orderItemsData.push({
+                                product_id: product._id,
+                                quantity: item.quantity,
+                                unit_price: finalUnitPrice,
+                                addons: item.addons || null
+                            });
+
+                            // Trừ bớt số lượng tồn kho của sản phẩm
+                            product.stock -= item.quantity;
+                            await product.save();
+                            console.log(`   🔸 Đã cập nhật trừ kho cho sản phẩm: ${product.name} (Đơn giá gồm dịch vụ: ${finalUnitPrice}đ)`);
+
+                            // Cảnh báo tồn kho thấp cho Admin
+                            if (product.stock < 5) {
+                                try {
+                                    // Truy vấn động danh sách tài khoản Admin từ DB
+                                    const admins = await UserAccount.findOne({ role: "ROLE_ADMIN", active: true });
+                                    const adminEmails = admins?.email;
+                                    const adminEmailPayload = {
+                                        emailType: "ADMIN_STOCK_ALERT",
+                                        to: adminEmails,
+                                        subject: `⚠️ [CẢNH BÁO TỒN KHO] Sản phẩm ${product.name} sắp hết hàng!`,
+                                        orderInfo: {
+                                            productName: product.name,
+                                            currentStock: product.stock
+                                        }
+                                    };
+                                    await producer.send({
+                                        topic: "fruit-emails-topic",
+                                        messages: [{ value: JSON.stringify(adminEmailPayload) }]
+                                    });
+                                    console.log(`⚠️ [Kafka] Đẩy yêu cầu cảnh báo tồn kho cho sản phẩm ${product.name} (còn ${product.stock}) tới Admin: ${adminEmails}`);
+                                } catch (err) {
+                                    console.error("❌ Lỗi khi gửi tin nhắn cảnh báo tồn kho lên Kafka:", err);
+                                    throw err;
                                 }
                             }
                         }
 
-                        const finalUnitPrice = product.price + addonsTotal;
-                        const itemTotal = finalUnitPrice * item.quantity;
-                        total_amount += itemTotal;
+                        // Tính mã giảm giá
+                        if (promotion_id) {
+                            const now = new Date();
+                            const appliedPromotion = await Promotion.findById(promotion_id);
 
-                        orderItemsData.push({
-                            product_id: product._id,
-                            quantity: item.quantity,
-                            unit_price: finalUnitPrice,
-                            addons: item.addons || null
-                        });
+                            if (appliedPromotion && appliedPromotion.active &&
+                                appliedPromotion.start_date <= now && appliedPromotion.end_date >= now &&
+                                total_amount >= appliedPromotion.threshold_amount) {
 
-                        // Trừ bớt số lượng tồn kho của sản phẩm
-                        product.stock -= item.quantity;
-                        await product.save();
-                        console.log(`   🔸 Đã cập nhật trừ kho cho sản phẩm: ${product.name} (Đơn giá gồm dịch vụ: ${finalUnitPrice}đ)`);
-
-                        // Cảnh báo tồn kho thấp cho Admin
-                        if (product.stock < 5) {
-                            try {
-                                // Truy vấn động danh sách tài khoản Admin từ DB
-                                const admins = await UserAccount.findOne({ role: "ROLE_ADMIN", active: true });
-                                const adminEmails = admins?.email;
-                                const adminEmailPayload = {
-                                    emailType: "ADMIN_STOCK_ALERT",
-                                    to: adminEmails,
-                                    subject: `⚠️ [CẢNH BÁO TỒN KHO] Sản phẩm ${product.name} sắp hết hàng!`,
-                                    orderInfo: {
-                                        productName: product.name,
-                                        currentStock: product.stock
-                                    }
-                                };
-                                await producer.send({
-                                    topic: "fruit-emails-topic",
-                                    messages: [{ value: JSON.stringify(adminEmailPayload) }]
-                                });
-                                console.log(`⚠️ [Kafka] Đẩy yêu cầu cảnh báo tồn kho cho sản phẩm ${product.name} (còn ${product.stock}) tới Admin: ${adminEmails}`);
-                            } catch (err) {
-                                console.error("❌ Lỗi khi gửi tin nhắn cảnh báo tồn kho lên Kafka:", err);
+                                discount_amount = Math.round((total_amount * appliedPromotion.discount_percent) / 100);
                             }
                         }
-                    }
 
-                    // Tính mã giảm giá
-                    let discount_amount = 0;
-                    if (promotion_id) {
-                        const now = new Date();
-                        const appliedPromotion = await Promotion.findById(promotion_id);
+                        payable_amount = total_amount - discount_amount;
 
-                        if (appliedPromotion && appliedPromotion.active &&
-                            appliedPromotion.start_date <= now && appliedPromotion.end_date >= now &&
-                            total_amount >= appliedPromotion.threshold_amount) {
+                        // LƯU VÀO DATABASE THẬT
+                        const newOrder = await ShopOrder.create({
+                            _id: orderId,
+                            customer_id,
+                            status: "PENDING",
+                            total_amount,
+                            discount_amount,
+                            payable_amount
+                        });
 
-                            discount_amount = Math.round((total_amount * appliedPromotion.discount_percent) / 100);
-                        }
-                    }
+                        const finalOrderItems = orderItemsData.map(item => ({
+                            ...item,
+                            order_id: newOrder._id
+                        }));
+                        await OrderItem.insertMany(finalOrderItems);
 
-                    const payable_amount = total_amount - discount_amount;
+                        console.log(`✅ [Database] Đơn hàng #${orderId} đã được lưu vào MongoDB thành công!`);
 
-                    // LƯU VÀO DATABASE THẬT
-                    const newOrder = await ShopOrder.create({
-                        _id: orderId,
-                        customer_id,
-                        status: "PENDING",
-                        total_amount,
-                        discount_amount,
-                        payable_amount
-                    });
-
-                    const finalOrderItems = orderItemsData.map(item => ({
-                        ...item,
-                        order_id: newOrder._id
-                    }));
-                    await OrderItem.insertMany(finalOrderItems);
-
-                    console.log(`✅ [Database] Đơn hàng #${orderId} đã được lưu vào MongoDB thành công!`);
-
-                    // CẬP NHẬT DASHBOARD
-                    const amount = payable_amount || 0;
-                    await DashboardStat.updateOne(
-                        { stat_id: "global_stat" },
-                        {
-                            $inc: {
-                                totalOrders: 1,
-                                totalSales: amount,
+                        // CẬP NHẬT DASHBOARD
+                        const amount = payable_amount || 0;
+                        await DashboardStat.updateOne(
+                            { stat_id: "global_stat" },
+                            {
+                                $inc: {
+                                    totalOrders: 1,
+                                    totalSales: amount,
+                                },
                             },
-                        },
-                        { upsert: true }
-                    );
-                    console.log(`📊 [Analytics] Đã cộng dồn +1 đơn và +${amount}đ vào Dashboard!`);
+                            { upsert: true }
+                        );
+                        console.log(`📊 [Analytics] Đã cộng dồn +1 đơn và +${amount}đ vào Dashboard!`);
+                    }
 
                     // Lấy thông tin khách hàng từ DB làm phương án dự phòng bảo mật
                     const dbCustomer = await Customer.findById(customer_id);
@@ -231,12 +244,12 @@ async function startWorker() {
                     // 🚨 ĐẨY SỰ KIỆN GỬI EMAIL VÀO KAFKA (Hóa đơn gửi khách)
                     const emailPayload = {
                         emailType: "CUSTOMER_INVOICE",
-                        to: dbCustomer?.email, // Ưu tiên email khách từ API gửi qua, không thì lấy mail dự phòng của bạn
+                        to: dbCustomer?.email,
                         subject: `🛒 Hóa đơn đặt hàng thành công tại FruitShop #${orderId}`,
                         orderInfo: {
                             orderId,
                             customerName: data.customerName || dbCustomer?.name,
-                            payable_amount: amount,
+                            payable_amount: payable_amount,
                             shippingAddress: data.shippingAddress || dbCustomer?.address
                         }
                     };
@@ -246,124 +259,129 @@ async function startWorker() {
                         messages: [{ value: JSON.stringify(emailPayload) }]
                     });
                     console.log(`🚀 [Kafka] Đã đẩy yêu cầu gửi email sang fruit-emails-topic`);
-
-                } catch (dbError) {
-                    console.error("❌ Lỗi khi lưu đơn hàng vào DB:", dbError);
                 }
-            }
 
-            if (payload.event === "OrderShipped") {
-                console.log(`\n🚚 [Kafka] Đơn hàng đang được giao: #${payload.orderId}`);
-            }
-
-            // =================================================================
-            // LUỒNG 2: XỬ LÝ GỬI EMAIL THẬT (Từ fruit-emails-topic)
-            // =================================================================
-            if (topic === "fruit-emails-topic") {
-                const { to, subject, orderInfo, emailType } = payload;
-                console.log(`\n📩 [Email Worker] Nhận lệnh gửi mail tới địa chỉ: ${to}`);
-
-                let htmlContent = "";
-
-                if (emailType === "CUSTOMER_INVOICE") {
-                    htmlContent = `
-                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
-                                    <h2 style="color: #2e7d32; text-align: center;">Cám ơn bạn đã mua hàng! 🍎🥑</h2>
-                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
-                                    <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được hệ thống lưu trữ và đang chờ đóng gói.</p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <h4 style="margin-bottom: 5px;">Thông tin đơn hàng:</h4>
-                                    <p style="margin: 5px 0;">💰 Tổng thanh toán: <strong style="color: #d32f2f;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
-                                    <p style="margin: 5px 0;">📍 Địa chỉ giao hàng: ${orderInfo.shippingAddress}</p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống luồng ngầm Kafka.</p>
-                                </div>
-                            `;
+                if (payload.event === "OrderShipped") {
+                    console.log(`\n🚚 [Kafka] Đơn hàng đang được giao: #${payload.orderId}`);
                 }
-                if (emailType === "RESET_PASSWORD_OTP") {
-                    htmlContent = `
-                                <div style="font-family: sans-serif; padding: 25px; border: 1px solid #e0e0e0; max-width: 500px; border-radius: 12px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                                    <h2 style="color: #1e88e5; text-align: center; margin-top: 0;">Khôi phục mật khẩu 🔑</h2>
-                                    <p>Chào bạn,</p>
-                                    <p>Chúng tôi nhận được yêu cầu lấy lại mật khẩu cho tài khoản liên kết với email này. Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình:</p>
-                                    
-                                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
-                                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #d32f2f;">${orderInfo.otpCode}</span>
+
+                // =================================================================
+                // LUỒNG 2: XỬ LÝ GỬI EMAIL THẬT (Từ fruit-emails-topic)
+                // =================================================================
+                if (topic === "fruit-emails-topic") {
+                    const { to, subject, orderInfo, emailType } = payload;
+                    console.log(`\n📩 [Email Worker] Nhận lệnh gửi mail tới địa chỉ: ${to}`);
+
+                    let htmlContent = "";
+
+                    if (emailType === "CUSTOMER_INVOICE") {
+                        htmlContent = `
+                                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                        <h2 style="color: #2e7d32; text-align: center;">Cám ơn bạn đã mua hàng! 🍎🥑</h2>
+                                        <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                        <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được hệ thống lưu trữ và đang chờ đóng gói.</p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <h4 style="margin-bottom: 5px;">Thông tin đơn hàng:</h4>
+                                        <p style="margin: 5px 0;">💰 Tổng thanh toán: <strong style="color: #d32f2f;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                        <p style="margin: 5px 0;">📍 Địa chỉ giao hàng: ${orderInfo.shippingAddress}</p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống luồng ngầm Kafka.</p>
                                     </div>
-                                    
-                                    <p style="font-size: 13px; color: #757575; text-align: center;">⚠️ Mã này có hiệu lực trong vòng <strong>${orderInfo.expireIn}</strong>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.</p>
-                                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                                    <p style="font-size: 11px; color: #999; text-align: center;">Nếu bạn không yêu cầu hành động này, bạn có thể an tâm bỏ qua email này.</p>
-                                </div>
-                            `;
-                }
-                if (emailType === "ORDER_SHIPPING") {
-                    htmlContent = `
-                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
-                                    <h2 style="color: #0288d1; text-align: center;">Đơn hàng của bạn đang được giao! 🚚✨</h2>
-                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
-                                    <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được bàn giao cho đơn vị vận chuyển và đang trên đường tới địa chỉ của bạn.</p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <h4 style="margin-bottom: 5px;">Thông tin giao hàng:</h4>
-                                    <p style="margin: 5px 0;">📍 Địa chỉ nhận hàng: ${orderInfo.shippingAddress}</p>
-                                    <p style="margin: 5px 0;">💰 Tổng thanh toán khi nhận hàng: <strong style="color: #d32f2f;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <p style="font-size: 11px; color: #888; text-align: center;">Chúc bạn có trải nghiệm tuyệt vời với sản phẩm của FruitShop!</p>
-                                </div>
-                            `;
+                                `;
+                    }
+                    if (emailType === "RESET_PASSWORD_OTP") {
+                        htmlContent = `
+                                    <div style="font-family: sans-serif; padding: 25px; border: 1px solid #e0e0e0; max-width: 500px; border-radius: 12px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                                        <h2 style="color: #1e88e5; text-align: center; margin-top: 0;">Khôi phục mật khẩu 🔑</h2>
+                                        <p>Chào bạn,</p>
+                                        <p>Chúng tôi nhận được yêu cầu lấy lại mật khẩu cho tài khoản liên kết với email này. Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình:</p>
+                                        
+                                        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                                            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #d32f2f;">${orderInfo.otpCode}</span>
+                                        </div>
+                                        
+                                        <p style="font-size: 13px; color: #757575; text-align: center;">⚠️ Mã này có hiệu lực trong vòng <strong>${orderInfo.expireIn}</strong>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.</p>
+                                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                                        <p style="font-size: 11px; color: #999; text-align: center;">Nếu bạn không yêu cầu hành động này, bạn có thể an tâm bỏ qua email này.</p>
+                                    </div>
+                                `;
+                    }
+                    if (emailType === "ORDER_SHIPPING") {
+                        htmlContent = `
+                                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                        <h2 style="color: #0288d1; text-align: center;">Đơn hàng của bạn đang được giao! 🚚✨</h2>
+                                        <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                        <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được bàn giao cho đơn vị vận chuyển và đang trên đường tới địa chỉ của bạn.</p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <h4 style="margin-bottom: 5px;">Thông tin giao hàng:</h4>
+                                        <p style="margin: 5px 0;">📍 Địa chỉ nhận hàng: ${orderInfo.shippingAddress}</p>
+                                        <p style="margin: 5px 0;">💰 Tổng thanh toán khi nhận hàng: <strong style="color: #d32f2f;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <p style="font-size: 11px; color: #888; text-align: center;">Chúc bạn có trải nghiệm tuyệt vời với sản phẩm của FruitShop!</p>
+                                    </div>
+                                `;
+                    }
+
+                    if (emailType === "ORDER_CANCELLED") {
+                        htmlContent = `
+                                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                        <h2 style="color: #c62828; text-align: center;">Đơn hàng đã bị hủy 🚫</h2>
+                                        <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                        <p>Chúng tôi rất tiếc phải thông báo rằng đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã bị hủy bỏ trên hệ thống.</p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <h4 style="margin-bottom: 5px;">Thông tin chi tiết:</h4>
+                                        <p style="margin: 5px 0;">💰 Giá trị đơn hàng: <strong>${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                        <p style="margin: 5px 0;">Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ hotline CSKH của FruitShop để được hỗ trợ.</p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống.</p>
+                                    </div>
+                                `;
+                    }
+
+                    if (emailType === "ORDER_DELIVERED") {
+                        htmlContent = `
+                                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
+                                        <h2 style="color: #2e7d32; text-align: center;">Đơn hàng giao thành công! 🎉🥳</h2>
+                                        <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
+                                        <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được giao thành công đến bạn.</p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <h4 style="margin-bottom: 5px;">Thông tin đơn hàng:</h4>
+                                        <p style="margin: 5px 0;">📍 Địa chỉ nhận hàng: ${orderInfo.shippingAddress}</p>
+                                        <p style="margin: 5px 0;">💰 Tổng số tiền đã thanh toán: <strong style="color: #2e7d32;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
+                                        <hr style="border: none; border-top: 1px solid #eee;" />
+                                        <p style="font-size: 11px; color: #888; text-align: center;">Cám ơn bạn đã lựa chọn FruitShop. Rất mong được phục vụ bạn trong những lần mua sắm tiếp theo!</p>
+                                    </div>
+                                `;
+                    }
+
+                    if (emailType === "ADMIN_STOCK_ALERT") {
+                        htmlContent = `
+                                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ffccd5; max-width: 600px; border-radius: 8px; background-color: #fff5f5;">
+                                        <h2 style="color: #c62828; text-align: center; margin-top: 0;">⚠️ CẢNH BÁO TỒN KHO THẤP ⚠️</h2>
+                                        <p>Xin chào <strong>Admin</strong>,</p>
+                                        <p>Hệ thống ghi nhận sản phẩm <strong>${orderInfo.productName}</strong> đang có số lượng tồn kho giảm xuống dưới mức tối thiểu (&lt; 5).</p>
+                                        <hr style="border: none; border-top: 1px solid #ffccd5;" />
+                                        <h4 style="margin-bottom: 5px; margin-top: 10px;">Thông tin sản phẩm:</h4>
+                                        <p style="margin: 5px 0;">📦 Sản phẩm: <strong>${orderInfo.productName}</strong></p>
+                                        <p style="margin: 5px 0;">🚨 Số lượng tồn kho hiện tại: <strong style="color: #c62828; font-size: 16px;">${orderInfo.currentStock}</strong></p>
+                                        <hr style="border: none; border-top: 1px solid #ffccd5;" />
+                                        <p style="font-size: 11px; color: #888; text-align: center;">Thư cảnh báo tự động từ hệ thống quản lý kho FruitShop.</p>
+                                    </div>
+                                `;
+                    }
+
+                    if (htmlContent) {
+                        await sendBrevoEmail(to, subject, htmlContent);
+                    }
                 }
 
-                if (emailType === "ORDER_CANCELLED") {
-                    htmlContent = `
-                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
-                                    <h2 style="color: #c62828; text-align: center;">Đơn hàng đã bị hủy 🚫</h2>
-                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
-                                    <p>Chúng tôi rất tiếc phải thông báo rằng đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã bị hủy bỏ trên hệ thống.</p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <h4 style="margin-bottom: 5px;">Thông tin chi tiết:</h4>
-                                    <p style="margin: 5px 0;">💰 Giá trị đơn hàng: <strong>${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
-                                    <p style="margin: 5px 0;">Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ hotline CSKH của FruitShop để được hỗ trợ.</p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <p style="font-size: 11px; color: #888; text-align: center;">Thư thông báo tự động từ hệ thống.</p>
-                                </div>
-                            `;
-                }
-
-                if (emailType === "ORDER_DELIVERED") {
-                    htmlContent = `
-                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 600px; border-radius: 8px;">
-                                    <h2 style="color: #2e7d32; text-align: center;">Đơn hàng giao thành công! 🎉🥳</h2>
-                                    <p>Xin chào <strong>${orderInfo.customerName}</strong>,</p>
-                                    <p>Đơn hàng mã <strong>#${orderInfo.orderId}</strong> của bạn đã được giao thành công đến bạn.</p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <h4 style="margin-bottom: 5px;">Thông tin đơn hàng:</h4>
-                                    <p style="margin: 5px 0;">📍 Địa chỉ nhận hàng: ${orderInfo.shippingAddress}</p>
-                                    <p style="margin: 5px 0;">💰 Tổng số tiền đã thanh toán: <strong style="color: #2e7d32;">${orderInfo.payable_amount.toLocaleString()}đ</strong></p>
-                                    <hr style="border: none; border-top: 1px solid #eee;" />
-                                    <p style="font-size: 11px; color: #888; text-align: center;">Cám ơn bạn đã lựa chọn FruitShop. Rất mong được phục vụ bạn trong những lần mua sắm tiếp theo!</p>
-                                </div>
-                            `;
-                }
-
-                if (emailType === "ADMIN_STOCK_ALERT") {
-                    htmlContent = `
-                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ffccd5; max-width: 600px; border-radius: 8px; background-color: #fff5f5;">
-                                    <h2 style="color: #c62828; text-align: center; margin-top: 0;">⚠️ CẢNH BÁO TỒN KHO THẤP ⚠️</h2>
-                                    <p>Xin chào <strong>Admin</strong>,</p>
-                                    <p>Hệ thống ghi nhận sản phẩm <strong>${orderInfo.productName}</strong> đang có số lượng tồn kho giảm xuống dưới mức tối thiểu (&lt; 5).</p>
-                                    <hr style="border: none; border-top: 1px solid #ffccd5;" />
-                                    <h4 style="margin-bottom: 5px; margin-top: 10px;">Thông tin sản phẩm:</h4>
-                                    <p style="margin: 5px 0;">📦 Sản phẩm: <strong>${orderInfo.productName}</strong></p>
-                                    <p style="margin: 5px 0;">🚨 Số lượng tồn kho hiện tại: <strong style="color: #c62828; font-size: 16px;">${orderInfo.currentStock}</strong></p>
-                                    <hr style="border: none; border-top: 1px solid #ffccd5;" />
-                                    <p style="font-size: 11px; color: #888; text-align: center;">Thư cảnh báo tự động từ hệ thống quản lý kho FruitShop.</p>
-                                </div>
-                            `;
-                }
-
-                if (htmlContent) {
-                    await sendBrevoEmail(to, subject, htmlContent);
-                }
+                // 💡 CHỈ COMMIT OFFSET KHI LUỒNG XỬ LÝ ĐÃ THÀNH CÔNG HOÀN TOÀN
+                await consumer.commitOffsets([
+                    { topic, partition, offset: (BigInt(message.offset) + 1n).toString() }
+                ]);
+            } catch (err) {
+                console.error(`❌ [Kafka Consumer] Lỗi nghiêm trọng khi xử lý tin nhắn tại offset ${message.offset} của topic ${topic}. Bỏ qua commit offset để kích hoạt cơ chế retry. Chi tiết:`, err);
+                throw err; // Ném lỗi để KafkaJS tự động retry
             }
         }
     });

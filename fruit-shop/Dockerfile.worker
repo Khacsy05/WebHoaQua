@@ -1,11 +1,15 @@
-FROM node:22-alpine
+# 1. Stage cài đặt dependencies (bao gồm devDependencies để chạy tsx)
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
 
+# 2. Stage chạy ứng dụng (Runner) - bỏ qua các cache thừa
+FROM node:22-alpine AS runner
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
-
+# Chỉ sao chép node_modules và mã nguồn cần thiết (đã được lọc qua .dockerignore)
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
 
 CMD ["npm", "run", "worker"]

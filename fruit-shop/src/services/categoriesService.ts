@@ -13,7 +13,12 @@ export async function fetchCategories(): Promise<Category[]> {
     }
 }
 
-export async function createCategory(name: string, description?: string): Promise<{ success: boolean; message?: string; data?: Category }> {
+export async function createCategory(
+    name: string,
+    description?: string,
+    isFeatured?: boolean,
+    icon?: string
+): Promise<{ success: boolean; message?: string; data?: Category }> {
     try {
         const response = await fetch('/api/categories', {
             method: 'POST',
@@ -21,7 +26,7 @@ export async function createCategory(name: string, description?: string): Promis
                 ...getAuthHeaders(),
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ name, description })
+            body: JSON.stringify({ name, description, isFeatured, icon })
         });
         return await response.json();
     } catch (error: any) {
@@ -30,7 +35,13 @@ export async function createCategory(name: string, description?: string): Promis
     }
 }
 
-export async function updateCategory(id: string, name: string, description?: string): Promise<{ success: boolean; message?: string; data?: Category }> {
+export async function updateCategory(
+    id: string,
+    name: string,
+    description?: string,
+    isFeatured?: boolean,
+    icon?: string
+): Promise<{ success: boolean; message?: string; data?: Category }> {
     try {
         const response = await fetch(`/api/categories/${id}`, {
             method: 'PUT',
@@ -38,7 +49,7 @@ export async function updateCategory(id: string, name: string, description?: str
                 ...getAuthHeaders(),
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ name, description })
+            body: JSON.stringify({ name, description, isFeatured, icon })
         });
         return await response.json();
     } catch (error: any) {

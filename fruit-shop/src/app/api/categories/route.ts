@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     try {
         await connectDB();
         const body = await request.json();
-        const { name, description } = body;
+        const { name, description, isFeatured, icon } = body;
 
         if (!name) {
             return NextResponse.json({ success: false, message: "Tên danh mục không được để trống" }, { status: 400 });
@@ -41,7 +41,9 @@ export async function POST(request: Request) {
         }
         const newCategory = await Category.create({ 
             name: name.trim(), // Xóa khoảng trắng thừa 2 đầu cho đẹp dữ liệu
-            description 
+            description,
+            isFeatured: Boolean(isFeatured),
+            icon: icon || null
         });
         return NextResponse.json({ success: true, data: newCategory }, { status: 201 });
     } catch (error: any) {

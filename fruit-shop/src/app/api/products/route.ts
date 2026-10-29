@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Product from "@/models/Product";
+import Category from "@/models/Category";
 import { verifyAuth } from "@/lib/auth";
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -15,11 +16,29 @@ export async function GET(request: Request) {
         await connectDB();
         const { searchParams } = new URL(request.url);
         const categoryId = searchParams.get("categoryId");
-        const filter = categoryId ? { category_id: categoryId } : {};
+        const search = searchParams.get("search");
+        const limitParam = searchParams.get("limit");
 
-        const products = await Product.find(filter)
+        const filter: any = {};
+        if (categoryId) {
+            filter.category_id = categoryId;
+        }
+        if (search && search.trim()) {
+            filter.name = { $regex: search.trim(), $options: "i" };
+        }
+
+        let query = Product.find(filter)
             .populate("category_id", "name")
             .sort({ createdAt: -1 });
+
+        if (limitParam) {
+            const limit = parseInt(limitParam, 10);
+            if (!isNaN(limit) && limit > 0) {
+                query = query.limit(limit);
+            }
+        }
+
+        const products = await query;
 
         return NextResponse.json({ success: true, data: products });
     } catch (error: any) {
